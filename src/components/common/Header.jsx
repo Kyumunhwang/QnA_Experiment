@@ -17,6 +17,11 @@ export default function Header() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // 슈퍼관리자(ID: hwang)만 설정(톱니바퀴) 메뉴 접근 허용
+  const isSuperuser =
+    currentTeacher &&
+    (currentTeacher.teacher_id === 'hwang' || currentTeacher.role === 'superuser');
+
   return (
     <>
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -113,19 +118,21 @@ export default function Header() {
               </>
             )}
 
-            {/* 교사/앱 설정 모달 열기 */}
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              title="설정 및 구글 시트 연동"
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
+            {/* 슈퍼관리자(ID: hwang) 접속 시에만 톱니바퀴 설정 아이콘 노출 */}
+            {isSuperuser && (
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                title="슈퍼관리자 설정 및 구글 시트 연동"
+                className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-full transition border border-amber-200 shadow-xs"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>
 
-      {isSettingsOpen && (
+      {isSuperuser && isSettingsOpen && (
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       )}
     </>
