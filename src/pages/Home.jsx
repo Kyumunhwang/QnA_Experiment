@@ -16,7 +16,8 @@ import {
   UserCheck,
   Plus,
   MessageSquare,
-  ShieldCheck
+  ShieldCheck,
+  BookOpen
 } from 'lucide-react';
 
 export default function Home() {
@@ -25,6 +26,7 @@ export default function Home() {
     currentUser,
     currentTeacher,
     setIsLoginModalOpen,
+    setIsManualOpen,
     questions,
     loading,
     isTeacherMode,
@@ -118,7 +120,7 @@ export default function Home() {
             {appConfig.banner_desc || '호기심 질문을 등록하면 선생님이 검토 후 탐구 과제로 승인합니다. 실패는 더 정확한 답을 찾아가는 최고의 디딤돌입니다!'}
           </p>
 
-          <div className="pt-2 flex items-center space-x-2">
+          <div className="pt-2 flex items-center flex-wrap gap-2">
             <button
               onClick={() => {
                 if (!currentUser) {
@@ -135,12 +137,32 @@ export default function Home() {
             </button>
 
             {!currentUser && !currentTeacher && (
+              <>
+                <button
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="inline-flex items-center space-x-1 bg-black/30 text-white border border-white/30 font-bold text-xs px-3.5 py-2.5 rounded-2xl hover:bg-black/40 transition active:scale-95"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>학생 로그인</span>
+                </button>
+
+                <button
+                  onClick={() => setIsManualOpen(true)}
+                  className="inline-flex items-center space-x-1.5 bg-white/20 hover:bg-white/30 text-white border border-white/40 font-bold text-xs px-3.5 py-2.5 rounded-2xl transition active:scale-95 backdrop-blur-xs shadow-xs"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-discovery-300" />
+                  <span>Science Eureka Manual</span>
+                </button>
+              </>
+            )}
+
+            {currentUser && (
               <button
-                onClick={() => setIsLoginModalOpen(true)}
-                className="inline-flex items-center space-x-1 bg-black/30 text-white border border-white/30 font-bold text-xs px-3 py-2.5 rounded-2xl hover:bg-black/40 transition"
+                onClick={() => setIsManualOpen(true)}
+                className="inline-flex items-center space-x-1 bg-white/20 hover:bg-white/30 text-white border border-white/30 font-bold text-xs px-3 py-2.5 rounded-2xl transition active:scale-95"
               >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>학생 로그인</span>
+                <BookOpen className="w-3.5 h-3.5 text-discovery-300" />
+                <span>Manual</span>
               </button>
             )}
 

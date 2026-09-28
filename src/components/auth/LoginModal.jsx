@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Lock, UserCheck, X, Sparkles, AlertCircle, KeyRound } from 'lucide-react';
+import { Lock, UserCheck, X, Sparkles, AlertCircle, KeyRound, BookOpen } from 'lucide-react';
 
 export default function LoginModal() {
   const {
     isLoginModalOpen,
     setIsLoginModalOpen,
+    setIsManualOpen,
     classList,
     studentRoster,
     login,
@@ -178,6 +179,21 @@ export default function LoginModal() {
               <span>접속하기</span>
             )}
           </button>
+
+          {/* Science Eureka Manual 바로가기 버튼 */}
+          <div className="pt-1 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoginModalOpen(false);
+                setIsManualOpen(true);
+              }}
+              className="text-[11px] font-bold text-slate-500 hover:text-eureka-600 transition inline-flex items-center space-x-1"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-eureka-500" />
+              <span>사용법이 궁금하신가요? Science Eureka Manual 보기</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>

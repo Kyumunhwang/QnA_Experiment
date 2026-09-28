@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { Sparkles, User, Settings, ShieldCheck, KeyRound, LogOut, LogIn } from 'lucide-react';
+import { Sparkles, User, Settings, ShieldCheck, KeyRound, LogOut, LogIn, BookOpen } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 
 export default function Header() {
@@ -12,6 +12,7 @@ export default function Header() {
     logout,
     setIsLoginModalOpen,
     setIsChangePwModalOpen,
+    setIsManualOpen,
     isTeacherMode,
   } = useApp();
 
@@ -97,13 +98,24 @@ export default function Header() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setIsLoginModalOpen(true)}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-eureka-50 text-eureka-700 border border-eureka-200 hover:bg-eureka-100 transition shadow-sm"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>학생 로그인</span>
-                  </button>
+                  <div className="flex items-center space-x-1.5">
+                    <button
+                      onClick={() => setIsManualOpen(true)}
+                      className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                      title="Science Eureka Manual 보기"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-eureka-600" />
+                      <span>Science Eureka Manual</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsLoginModalOpen(true)}
+                      className="flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-eureka-50 text-eureka-700 border border-eureka-200 hover:bg-eureka-100 transition shadow-sm"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>학생 로그인</span>
+                    </button>
+                  </div>
                 )}
               </>
             )}

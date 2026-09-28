@@ -1,11 +1,12 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import Header from './components/common/Header';
 import BottomNav from './components/common/BottomNav';
 import Toast from './components/common/Toast';
 import LoginModal from './components/auth/LoginModal';
 import ChangePasswordModal from './components/auth/ChangePasswordModal';
+import ManualModal from './components/common/ManualModal';
 
 // 학생용 페이지
 import Home from './pages/Home';
@@ -26,6 +27,7 @@ import TeacherCustomize from './pages/teacher/TeacherCustomize';
 
 function AppContent() {
   const location = useLocation();
+  const { isManualOpen, setIsManualOpen } = useApp();
   const isTeacherLogin = location.pathname === '/teacher/login';
   const isTeacherPage = location.pathname.startsWith('/teacher');
 
@@ -37,9 +39,10 @@ function AppContent() {
       {/* 알림 토스트 */}
       <Toast />
 
-      {/* 인증 관련 전역 모달 */}
+      {/* 인증 관련 전역 모달 & 매뉴얼 모달 */}
       <LoginModal />
       <ChangePasswordModal />
+      <ManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
 
       {/* 메인 뷰 컨테이너 */}
       <main

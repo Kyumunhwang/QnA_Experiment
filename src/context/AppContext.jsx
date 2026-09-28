@@ -71,6 +71,7 @@ export function AppProvider({ children }) {
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isChangePwModalOpen, setIsChangePwModalOpen] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
 
   const [questions, setQuestions] = useState([]);
   const [portfolios, setPortfolios] = useState([]);
@@ -440,6 +441,8 @@ export function AppProvider({ children }) {
         setIsLoginModalOpen,
         isChangePwModalOpen,
         setIsChangePwModalOpen,
+        isManualOpen,
+        setIsManualOpen,
         login,
         logout,
         updatePassword,
