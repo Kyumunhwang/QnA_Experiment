@@ -315,17 +315,20 @@ export async function deleteTeacher(teacherId) {
    ========================================================================== */
 
 /** 학생 명렬표 조회 */
-export async function getStudents() {
+export async function getStudents(forceNetwork = false) {
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
-      const res = await fetch(`${apiUrl}?action=getStudents`);
+      const cacheBuster = forceNetwork ? `&_t=${Date.now()}` : '';
+      const res = await fetch(`${apiUrl}?action=getStudents${cacheBuster}`);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setLocal(STORAGE_KEY_STUDENTS, json.data);
         return { students: json.data, classes: json.classes || DEFAULT_CLASSES };
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn('GAS getStudents failed, falling back to local storage:', err);
+    }
   }
   return {
     students: getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS),
@@ -371,6 +374,7 @@ export async function changeStudentPassword(gradeClass, studentName, newPassword
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'changePassword', grade_class: gradeClass, student_name: studentName, new_password: newPassword }),
       });
+      await getStudents(true);
     } catch (err) {}
   }
   return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
@@ -393,6 +397,7 @@ export async function resetStudentPassword(gradeClass, studentName) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'resetPassword', grade_class: gradeClass, student_name: studentName }),
       });
+      await getStudents(true);
     } catch (err) {}
   }
   return { success: true, message: `${studentName} 학생 비밀번호가 1234로 초기화되었습니다.` };
@@ -410,12 +415,17 @@ export async function addNewStudent(gradeClass, studentName) {
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
-      await fetch(apiUrl, {
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'addStudent', grade_class: gradeClass, student_name: studentName }),
       });
-    } catch (err) {}
+      const json = await res.json();
+      await getStudents(true);
+      return { success: true, message: json.message || `${studentName} 학생이 명렬표에 추가되었습니다.` };
+    } catch (err) {
+      console.warn('addStudent GAS error:', err);
+    }
   }
   return { success: true, message: `${studentName} 학생이 명렬표에 추가되었습니다.` };
 }
@@ -434,12 +444,17 @@ export async function updateStudent(oldClass, oldName, newClass, newName) {
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
-      await fetch(apiUrl, {
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'updateStudent', old_grade_class: oldClass, old_student_name: oldName, new_grade_class: newClass, new_student_name: newName }),
       });
-    } catch (err) {}
+      const json = await res.json();
+      await getStudents(true);
+      return { success: true, message: json.message || '학생 정보가 수정되었습니다.' };
+    } catch (err) {
+      console.warn('updateStudent GAS error:', err);
+    }
   }
   return { success: true, message: '학생 정보가 수정되었습니다.' };
 }
@@ -453,14 +468,86 @@ export async function deleteStudent(gradeClass, studentName) {
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
-      await fetch(apiUrl, {
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'deleteStudent', grade_class: gradeClass, student_name: studentName }),
       });
-    } catch (err) {}
+      const json = await res.json();
+      await getStudents(true);
+      return { success: true, message: json.message || `${studentName} 학생이 삭제되었습니다.` };
+    } catch (err) {
+      console.warn('deleteStudent GAS error:', err);
+    }
   }
   return { success: true, message: `${studentName} 학생이 삭제되었습니다.` };
+}
+
+/** 1년 주기 학년 일괄 진급 (M6->M7, M7->M8, M8->H9, H9->H10, H10->H11, H11->H12, H12는 졸업 삭제) */
+export async function promoteStudents() {
+  const GRADE_MAP = {
+    'M6': 'M7',
+    'M7': 'M8',
+    'M8': 'H9',
+    'H9': 'H10',
+    'H10': 'H11',
+    'H11': 'H12'
+  };
+
+  const apiUrl = getGasApiUrl();
+  if (apiUrl) {
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'promoteStudents' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        await getStudents(true);
+        return {
+          success: true,
+          message: json.message || '학년 진급 처리가 완료되었습니다.',
+          promotedCount: json.promotedCount,
+          graduatedCount: json.graduatedCount,
+        };
+      }
+    } catch (err) {
+      console.warn('GAS promoteStudents error, executing local fallback:', err);
+    }
+  }
+
+  // 로컬 Fallback 실행
+  const list = getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
+  let promotedCount = 0;
+  let graduatedCount = 0;
+
+  const updatedList = [];
+  for (const s of list) {
+    const curClass = String(s.grade_class || '').trim();
+    if (curClass === 'H12') {
+      graduatedCount++;
+      continue;
+    }
+    const nextClass = GRADE_MAP[curClass] || curClass;
+    if (nextClass !== curClass) {
+      promotedCount++;
+    }
+    updatedList.push({
+      ...s,
+      grade_class: nextClass,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  setLocal(STORAGE_KEY_STUDENTS, updatedList);
+
+  return {
+    success: true,
+    message: `총 ${promotedCount}명 진급 완료, ${graduatedCount}명(H12) 졸업 처리되었습니다. (로컬 반영)`,
+    promotedCount,
+    graduatedCount,
+  };
 }
 
 /* ==========================================================================

@@ -331,7 +331,8 @@ function doPost(e) {
       const gradeClass = String(body.grade_class || '').trim();
       const studentName = String(body.student_name || '').trim();
       sheet.appendRow([gradeClass, studentName, '1234', Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm:ss')]);
-      return createResponse({ success: true, message: '학생 추가 완료' });
+      SpreadsheetApp.flush();
+      return createResponse({ success: true, message: `${studentName} 학생이 명렬표에 추가되었습니다.` });
     }
 
     // 9. 학생 정보 수정 (반, 이름)
@@ -348,7 +349,8 @@ function doPost(e) {
           sheet.getRange(i + 1, 1).setValue(newClass);
           sheet.getRange(i + 1, 2).setValue(newName);
           sheet.getRange(i + 1, 4).setValue(Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm:ss'));
-          return createResponse({ success: true, message: '학생 정보 수정 완료' });
+          SpreadsheetApp.flush();
+          return createResponse({ success: true, message: '학생 정보가 수정되었습니다.' });
         }
       }
       return createResponse({ success: false, error: '학생 정보를 찾을 수 없습니다.' });
@@ -364,10 +366,66 @@ function doPost(e) {
       for (let i = 1; i < rows.length; i++) {
         if (String(rows[i][0]).trim() === gradeClass && String(rows[i][1]).trim() === studentName) {
           sheet.deleteRow(i + 1);
+          SpreadsheetApp.flush();
           return createResponse({ success: true, message: '학생이 삭제되었습니다.' });
         }
       }
       return createResponse({ success: false, error: '학생 정보를 찾을 수 없습니다.' });
+    }
+
+    // 10-1. 일괄 학년 진급 (M6->M7, M7->M8, M8->H9, H9->H10, H10->H11, H11->H12, H12는 졸업 삭제)
+    if (action === 'promoteStudents') {
+      const sheet = ss.getSheetByName(SHEET_STUDENTS);
+      const rows = sheet.getDataRange().getValues();
+      if (rows.length <= 1) {
+        return createResponse({ success: true, message: '학생 데이터가 없습니다.', promotedCount: 0, graduatedCount: 0 });
+      }
+
+      const GRADE_MAP = {
+        'M6': 'M7',
+        'M7': 'M8',
+        'M8': 'H9',
+        'H9': 'H10',
+        'H10': 'H11',
+        'H11': 'H12'
+      };
+
+      const headers = rows[0];
+      const nowStr = Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm:ss');
+      const remainingRows = [];
+      let promotedCount = 0;
+      let graduatedCount = 0;
+
+      for (let i = 1; i < rows.length; i++) {
+        const currentClass = String(rows[i][0]).trim();
+        const studentName = rows[i][1];
+        const password = rows[i][2];
+
+        if (currentClass === 'H12') {
+          graduatedCount++;
+          continue;
+        }
+
+        const nextClass = GRADE_MAP[currentClass] || currentClass;
+        if (nextClass !== currentClass) {
+          promotedCount++;
+        }
+        remainingRows.push([nextClass, studentName, password, nowStr]);
+      }
+
+      sheet.clearContents();
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      if (remainingRows.length > 0) {
+        sheet.getRange(2, 1, remainingRows.length, headers.length).setValues(remainingRows);
+      }
+      SpreadsheetApp.flush();
+
+      return createResponse({
+        success: true,
+        message: `총 ${promotedCount}명 진급 완료, ${graduatedCount}명(H12) 졸업 처리되었습니다.`,
+        promotedCount: promotedCount,
+        graduatedCount: graduatedCount
+      });
     }
 
     // 11. 질문 등록

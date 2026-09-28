@@ -7,6 +7,7 @@ import {
   addNewStudent,
   updateStudent,
   deleteStudent,
+  promoteStudents,
   getQuestions,
   updateQuestionStatus,
   getPortfolios,
@@ -83,9 +84,9 @@ export function AppProvider({ children }) {
     }, 3000);
   };
 
-  const refreshStudents = async () => {
+  const refreshStudents = async (forceNetwork = false) => {
     try {
-      const res = await getStudents();
+      const res = await getStudents(forceNetwork);
       if (res?.students) setStudentRoster(res.students);
       if (res?.classes) setClassList(res.classes);
     } catch (e) {
@@ -219,12 +220,29 @@ export function AppProvider({ children }) {
       const res = await deleteStudent(gradeClass, studentName);
       if (res.success) {
         showToast(`${studentName} 학생이 명렬표에서 삭제되었습니다.`, 'info');
-        await refreshStudents();
+        await refreshStudents(true);
         return { success: true };
       }
     } catch (e) {
       showToast('삭제 오류', 'error');
       return { success: false };
+    }
+  };
+
+  const promoteStudentsAction = async () => {
+    try {
+      setLoading(true);
+      const res = await promoteStudents();
+      await refreshStudents(true);
+      await refreshQuestions();
+      await refreshPortfolios();
+      showToast(res.message || '일괄 진급이 완료되었습니다!', 'success');
+      return res;
+    } catch (e) {
+      showToast('일괄 진급 처리 중 오류가 발생했습니다.', 'error');
+      return { success: false, error: e.message };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -429,6 +447,7 @@ export function AppProvider({ children }) {
         handleAddStudent,
         updateStudentAction,
         deleteStudentAction,
+        promoteStudentsAction,
         updateQuestionStatusAndFeedback,
         reviewPortfolioAction,
         refreshStudents,
