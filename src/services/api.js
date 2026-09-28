@@ -45,21 +45,8 @@ const INITIAL_MOCK_TEACHERS = [
   }
 ];
 
-const INITIAL_MOCK_STUDENTS = [
-  { grade_class: 'M6', student_name: '김우주', password: '1234' },
-  { grade_class: 'M6', student_name: '이지구', password: '1234' },
-  { grade_class: 'M6', student_name: '박하늘', password: '1234' },
-  { grade_class: 'M7', student_name: '최별이', password: '1234' },
-  { grade_class: 'M7', student_name: '정태양', password: '1234' },
-  { grade_class: 'M7', student_name: '강바람', password: '1234' },
-  { grade_class: 'M8', student_name: '윤바다', password: '1234' },
-  { grade_class: 'M8', student_name: '장샛별', password: '1234' },
-  { grade_class: 'H9', student_name: '임은하', password: '1234' },
-  { grade_class: 'H9', student_name: '한혜성', password: '1234' },
-  { grade_class: 'H10', student_name: '오오로라', password: '1234' },
-  { grade_class: 'H11', student_name: '신화성', password: '1234' },
-  { grade_class: 'H12', student_name: '배목성', password: '1234' },
-];
+// 초기 더미 학생 목록 제거 (구글 시트 100명 로스터 연동 사용)
+const INITIAL_MOCK_STUDENTS = [];
 
 const INITIAL_MOCK_QUESTIONS = [
   {
@@ -153,6 +140,17 @@ function setLocal(key, val) {
   }
 }
 
+// 기본 구글 시트 웹앱 배포 URL (Fallback)
+export const DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxwvo6yoNchzD7xD3-hjKZqauDf1AKAzEAxsJbK44xiJ9McVHz1ixtHFnrjV-6-dnKqGw/exec';
+
+// 기존에 저장된 더미 학생(김우주 등)이 있으면 로컬스토리지 정리하여 시트 데이터로 덮어쓰도록 유도
+try {
+  const existingStudents = localStorage.getItem(STORAGE_KEY_STUDENTS);
+  if (existingStudents && existingStudents.includes('김우주')) {
+    localStorage.removeItem(STORAGE_KEY_STUDENTS);
+  }
+} catch (e) {}
+
 if (!localStorage.getItem(STORAGE_KEY_TEACHERS)) setLocal(STORAGE_KEY_TEACHERS, INITIAL_MOCK_TEACHERS);
 if (!localStorage.getItem(STORAGE_KEY_STUDENTS)) setLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
 if (!localStorage.getItem(STORAGE_KEY_QUESTIONS)) setLocal(STORAGE_KEY_QUESTIONS, INITIAL_MOCK_QUESTIONS);
@@ -160,7 +158,7 @@ if (!localStorage.getItem(STORAGE_KEY_PORTFOLIOS)) setLocal(STORAGE_KEY_PORTFOLI
 if (!localStorage.getItem(STORAGE_KEY_CONFIG)) setLocal(STORAGE_KEY_CONFIG, INITIAL_MOCK_CONFIG);
 
 export function getGasApiUrl() {
-  return localStorage.getItem(STORAGE_KEY_API_URL) || import.meta.env.VITE_GAS_API_URL || '';
+  return localStorage.getItem(STORAGE_KEY_API_URL) || import.meta.env.VITE_GAS_API_URL || DEFAULT_GAS_API_URL;
 }
 
 export function setGasApiUrl(url) {

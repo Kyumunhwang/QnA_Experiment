@@ -105,16 +105,6 @@ export default function Header() {
                     <span>학생 로그인</span>
                   </button>
                 )}
-
-                {/* 교사 전용 관리자 로그인 링크 */}
-                <Link
-                  to="/teacher/login"
-                  className="px-2 py-1.5 rounded-xl text-slate-500 hover:text-amber-600 hover:bg-slate-100 text-[11px] font-bold flex items-center space-x-1 transition"
-                  title="교사 전용 관리자 로그인"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">교사 전용</span>
-                </Link>
               </>
             )}
 
