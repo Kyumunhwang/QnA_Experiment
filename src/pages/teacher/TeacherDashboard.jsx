@@ -182,6 +182,15 @@ export default function TeacherDashboard() {
             전체 및 반별 질문 기록(승인/반려/평균)과 최다 질문 순위, 탐구일지 완료 현황을 한눈에 관리합니다.
           </p>
         </div>
+
+        <button
+          onClick={() => navigate('/teacher/scores')}
+          className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl text-xs font-black shadow-sm transition flex items-center space-x-1.5 self-start sm:self-auto shrink-0"
+        >
+          <Trophy className="w-4 h-4 text-yellow-100" />
+          <span>매주 탐구 점수 대시보드 보기</span>
+          <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+        </button>
       </div>
 
       {/* 1. 전체 학생 종합 KPI 통계 카드 (요청 항목 3 반영) */}

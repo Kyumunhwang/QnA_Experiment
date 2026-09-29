@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   BookOpen
 } from 'lucide-react';
+import WeeklyScoreBanner from '../components/student/WeeklyScoreBanner';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export default function Home() {
     setIsLoginModalOpen,
     setIsManualOpen,
     questions,
+    portfolios,
     loading,
     isTeacherMode,
     handleToggleSelectQuestion,
@@ -94,6 +96,15 @@ export default function Home() {
 
   return (
     <div className="space-y-4 pb-8 animate-fadeIn">
+      {/* 학생 로그인 시 이번 주 나의 탐구 점수 배너 (정자체 큰 점수 & 경고/격려/도전/축포 상태등) */}
+      {currentUser && (
+        <WeeklyScoreBanner
+          currentUser={currentUser}
+          questions={questions}
+          portfolios={portfolios}
+        />
+      )}
+
       {/* 웰컴 배너 (선생님 커스텀 공지 및 테마 색상 연동) */}
       <div
         className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentTheme.bgGradient} text-white p-5 sm:p-6 shadow-xl transition-all duration-300`}

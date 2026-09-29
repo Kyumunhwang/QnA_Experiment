@@ -10,7 +10,8 @@ import {
   ArrowLeft,
   ShieldCheck,
   LogOut,
-  Crown
+  Crown,
+  Trophy
 } from 'lucide-react';
 
 export default function TeacherNav() {
@@ -19,6 +20,7 @@ export default function TeacherNav() {
 
   const links = [
     { to: '/teacher', label: '대시보드', icon: LayoutDashboard, end: true },
+    { to: '/teacher/scores', label: '주간 탐구 점수', icon: Trophy },
     { to: '/teacher/roster', label: '학생 명렬표', icon: Users },
     { to: '/teacher/teachers', label: '교사 명렬표', icon: ShieldCheck },
     { to: '/teacher/questions', label: '질문 승인 & 피드백', icon: CheckSquare },

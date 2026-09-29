@@ -19,6 +19,7 @@ import ReportView from './pages/ReportView';
 import TeacherLogin from './pages/teacher/TeacherLogin';
 import TeacherRouteGuard from './components/teacher/TeacherRouteGuard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import TeacherWeeklyScores from './pages/teacher/TeacherWeeklyScores';
 import TeacherRoster from './pages/teacher/TeacherRoster';
 import TeacherTeachers from './pages/teacher/TeacherTeachers';
 import TeacherQuestions from './pages/teacher/TeacherQuestions';
@@ -68,6 +69,7 @@ function AppContent() {
           {/* 교사용 관리 포털 라우트 (TeacherRouteGuard 보호) */}
           <Route element={<TeacherRouteGuard />}>
             <Route path="/teacher" element={<TeacherDashboard />} />
+            <Route path="/teacher/scores" element={<TeacherWeeklyScores />} />
             <Route path="/teacher/roster" element={<TeacherRoster />} />
             <Route path="/teacher/teachers" element={<TeacherTeachers />} />
             <Route path="/teacher/questions" element={<TeacherQuestions />} />
