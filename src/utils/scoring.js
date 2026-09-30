@@ -163,12 +163,21 @@ export function calculateStudentWeeklyScore({
 
   const questionCount = weekQuestions.length;
 
-  // 2. 질문 승인 여부
-  // 한 주가 지나더라도 해당 질문이 교사에 의해 승인되었으면 승인 점수 반영!
+  // 2. 질문 상태별 분류 (승인, 반려, 검토 대기)
   const approvedQuestions = weekQuestions.filter(
     (q) => q.status === 'approved' || Boolean(q.is_selected)
   );
   const isApproved = approvedQuestions.length > 0;
+
+  const rejectedQuestions = weekQuestions.filter(
+    (q) => q.status === 'rejected'
+  );
+  const rejectedCount = rejectedQuestions.length;
+
+  const pendingQuestions = weekQuestions.filter(
+    (q) => q.status === 'pending' || (!q.status && !q.is_selected)
+  );
+  const pendingCount = pendingQuestions.length;
 
   // 3. 포트폴리오 탐색
   // 해당 주차의 승인 질문과 연계된 포트폴리오이거나, 해당 학생의 포트폴리오
@@ -189,7 +198,7 @@ export function calculateStudentWeeklyScore({
 
   // 4. 시스템 자동 점수 계산
   let systemScore = 0;
-  let status = 'NONE'; // 'NONE' | 'ENCOURAGE' | 'CHALLENGE' | 'PERFECT'
+  let status = 'NONE'; // 'NONE' | 'PENDING_REVIEW' | 'ENCOURAGE' | 'CHALLENGE' | 'PERFECT'
   let breakdown = {
     baseQuestions: 0,
     bonusQuestions: 0,
@@ -200,33 +209,48 @@ export function calculateStudentWeeklyScore({
     finalStampBonus: 0,
   };
   let message = '';
-  let lightType = 'warning'; // 'warning' | 'encourage' | 'challenge' | 'perfect'
+  let lightType = 'warning'; // 'warning' | 'pending' | 'encourage' | 'challenge' | 'perfect'
 
   if (questionCount === 0) {
+    // [0점] 이번 주 등록된 질문 없음
     systemScore = 0;
     status = 'NONE';
     lightType = 'warning';
     message = '이번 주 아직 등록된 호기심 질문이 없습니다. 질문을 등록하고 탐구를 시작해 보세요!';
-  } else if (!isApproved) {
+  } else if (!isApproved && rejectedCount === 0) {
+    // [0점] 질문은 등록했으나, 선생님이 아직 승인이나 반려(피드백)를 하지 않은 검토 대기 상태
+    // ※ 선생님이 검토(반려 또는 승인)를 하기 전에는 점수가 부여되지 않음
+    systemScore = 0;
+    status = 'PENDING_REVIEW';
+    lightType = 'pending';
+    message = `등록한 호기심 질문(${questionCount}건)을 선생님이 검토하고 있습니다. 선생님의 검토(승인 또는 반려 피드백) 완료 후 점수가 부여됩니다!`;
+  } else if (!isApproved && rejectedCount > 0) {
+    // [80점 ~ 89점] 선생님이 검토하여 반려(보완 피드백)한 경우
     status = 'ENCOURAGE';
     lightType = 'encourage';
 
-    if (questionCount === 1) {
+    if (rejectedCount === 1) {
       systemScore = 80;
       breakdown.baseQuestions = 80;
-    } else if (questionCount === 2) {
+    } else if (rejectedCount === 2) {
       systemScore = 85;
       breakdown.baseQuestions = 80;
       breakdown.bonusQuestions = 5;
     } else {
-      const bonus = Math.min(4, questionCount - 2);
+      // 3건 이상 반려/피드백 검토 완료: 85 + (rejectedCount - 2), 최대 89점
+      const bonus = Math.min(4, rejectedCount - 2);
       systemScore = 85 + bonus;
       breakdown.baseQuestions = 80;
       breakdown.bonusQuestions = 5 + bonus;
     }
 
-    message = '좋은 출발입니다! 선생님의 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요.';
+    if (pendingCount > 0) {
+      message = `선생님 검토 완료 질문 ${rejectedCount}건(반려)으로 ${systemScore}점이 부여되었습니다. 추가 제출된 질문(${pendingCount}건) 검토 완료 시 추가 점수가 반영됩니다!`;
+    } else {
+      message = `선생님의 보완 피드백(반려)이 완료되어 ${systemScore}점이 부여되었습니다. 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요!`;
+    }
   } else {
+    // [90점 ~ 100점] 선생님의 승인 완료
     breakdown.approvalBase = 90;
     systemScore = 90;
 
@@ -244,7 +268,7 @@ export function calculateStudentWeeklyScore({
     }
 
     if (isReviewed) {
-      systemScore = 100;
+      systemScore = 100; // 최종 확인 도장 승인 시 +1점 추가로 100점
       breakdown.finalStampBonus = 1;
       status = 'PERFECT';
       lightType = 'perfect';
@@ -305,8 +329,9 @@ export function calculateStudentWeeklyScore({
     overrideRecord,
     status,
     lightType,
-    message,
     questionCount,
+    rejectedCount,
+    pendingCount,
     isApproved,
     hasStep2,
     hasStep3,
@@ -434,7 +459,8 @@ export function getClassWeeklySummary({
   const count100 = studentScores.filter((s) => s.score === 100).length;
   const countChallenge = studentScores.filter((s) => s.score >= 90 && s.score < 100).length;
   const countEncourage = studentScores.filter((s) => s.score >= 80 && s.score < 90).length;
-  const countZero = studentScores.filter((s) => s.score === 0).length;
+  const countPendingReview = studentScores.filter((s) => s.lightType === 'pending').length;
+  const countZero = studentScores.filter((s) => s.score === 0 && s.lightType !== 'pending').length;
   const countOverridden = studentScores.filter((s) => s.isOverridden).length;
 
   return {
@@ -448,6 +474,7 @@ export function getClassWeeklySummary({
     count100,
     countChallenge,
     countEncourage,
+    countPendingReview,
     countZero,
     countOverridden,
     studentScores,

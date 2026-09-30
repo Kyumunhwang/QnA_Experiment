@@ -267,77 +267,89 @@ export default function TeacherWeeklyScores() {
         </div>
 
         {/* 주차 요약 KPI 카드 */}
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
-          <div className="bg-eureka-50/80 border border-eureka-200 rounded-2xl p-3">
+        <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 pt-1">
+          <div className="bg-eureka-50/80 border border-eureka-200 rounded-2xl p-2.5">
             <span className="text-[11px] font-bold text-eureka-800 flex items-center space-x-1">
               <TrendingUp className="w-3.5 h-3.5 text-eureka-600" />
-              <span>학급 평균 점수</span>
+              <span>평균 점수</span>
             </span>
-            <div className="text-2xl font-black text-eureka-900 mt-1">
+            <div className="text-xl font-black text-eureka-900 mt-1">
               {classSummary.avgScore}
               <span className="text-xs font-bold text-eureka-700 ml-1">점</span>
             </div>
-            <p className="text-[10px] text-eureka-600">총 {classSummary.totalCount}명 대상</p>
+            <p className="text-[10px] text-eureka-600">총 {classSummary.totalCount}명</p>
           </div>
 
-          <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-3">
+          <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-2.5">
             <span className="text-[11px] font-bold text-purple-800 flex items-center space-x-1">
               <Trophy className="w-3.5 h-3.5 text-purple-600" />
               <span>100점 만점</span>
             </span>
-            <div className="text-2xl font-black text-purple-900 mt-1">
+            <div className="text-xl font-black text-purple-900 mt-1">
               {classSummary.count100}
               <span className="text-xs font-bold text-purple-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-purple-600 font-medium">최종 도장 통과</p>
+            <p className="text-[10px] text-purple-600 font-medium">도장 통과</p>
           </div>
 
-          <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-3">
+          <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-2.5">
             <span className="text-[11px] font-bold text-blue-800 flex items-center space-x-1">
               <Zap className="w-3.5 h-3.5 text-blue-600" />
-              <span>90~99점 (도전)</span>
+              <span>90~99점</span>
             </span>
-            <div className="text-2xl font-black text-blue-900 mt-1">
+            <div className="text-xl font-black text-blue-900 mt-1">
               {classSummary.countChallenge}
               <span className="text-xs font-bold text-blue-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-blue-600 font-medium">승인 및 일지 진행</p>
+            <p className="text-[10px] text-blue-600 font-medium">승인·진행</p>
           </div>
 
-          <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3">
+          <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-2.5">
             <span className="text-[11px] font-bold text-amber-800 flex items-center space-x-1">
               <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
-              <span>80~89점 (격려)</span>
+              <span>80~89점</span>
             </span>
-            <div className="text-2xl font-black text-amber-900 mt-1">
+            <div className="text-xl font-black text-amber-900 mt-1">
               {classSummary.countEncourage}
               <span className="text-xs font-bold text-amber-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-amber-600 font-medium">질문 등록 (미승인)</p>
+            <p className="text-[10px] text-amber-600 font-medium">반려 피드백</p>
           </div>
 
-          <div className="bg-rose-50/80 border border-rose-200 rounded-2xl p-3">
+          <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-2.5">
+            <span className="text-[11px] font-bold text-amber-800 flex items-center space-x-1">
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>검토 대기</span>
+            </span>
+            <div className="text-xl font-black text-amber-900 mt-1">
+              {classSummary.countPendingReview}
+              <span className="text-xs font-bold text-amber-700 ml-1">명</span>
+            </div>
+            <p className="text-[10px] text-amber-600 font-medium">검토 대기(0점)</p>
+          </div>
+
+          <div className="bg-rose-50/80 border border-rose-200 rounded-2xl p-2.5">
             <span className="text-[11px] font-bold text-rose-800 flex items-center space-x-1">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
               <span>0점 (미참여)</span>
             </span>
-            <div className="text-2xl font-black text-rose-900 mt-1">
+            <div className="text-xl font-black text-rose-900 mt-1">
               {classSummary.countZero}
               <span className="text-xs font-bold text-rose-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-rose-600 font-medium">독려 필요</p>
+            <p className="text-[10px] text-rose-600 font-medium">질문 미등록</p>
           </div>
 
-          <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3">
+          <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-2.5">
             <span className="text-[11px] font-bold text-indigo-800 flex items-center space-x-1">
               <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
-              <span>교사 직접 조정</span>
+              <span>교사 조정</span>
             </span>
-            <div className="text-2xl font-black text-indigo-900 mt-1">
+            <div className="text-xl font-black text-indigo-900 mt-1">
               {classSummary.countOverridden}
               <span className="text-xs font-bold text-indigo-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-indigo-600 font-medium">수동 점수 부여</p>
+            <p className="text-[10px] text-indigo-600 font-medium">수동 점수</p>
           </div>
         </div>
       </div>
@@ -452,9 +464,13 @@ export default function TeacherWeeklyScores() {
                     <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
                       질문 승인
                     </span>
-                  ) : st.questionCount > 0 ? (
+                  ) : st.rejectedCount > 0 ? (
                     <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
-                      미승인/반려
+                      반려 {st.rejectedCount}건
+                    </span>
+                  ) : st.pendingCount > 0 ? (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                      검토 대기 {st.pendingCount}건
                     </span>
                   ) : null}
                   {st.hasStep4 ? (
@@ -491,6 +507,11 @@ export default function TeacherWeeklyScores() {
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-100 text-amber-800 flex items-center space-x-1">
                         <Lightbulb className="w-3 h-3 text-amber-600" />
                         <span>격려등 💡</span>
+                      </span>
+                    ) : st.lightType === 'pending' ? (
+                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-300 flex items-center space-x-1">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        <span>검토대기 ⏳</span>
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-rose-100 text-rose-800 flex items-center space-x-1">

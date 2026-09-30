@@ -40,7 +40,7 @@ export default function WeeklyScoreBanner({ currentUser, questions, portfolios }
   });
 
   const { thisWeek, lastWeek, diff, trend } = comparison;
-  const { score, lightType, message, breakdown, questionCount, isApproved, isReviewed, isOverridden } = thisWeek;
+  const { score, lightType, message, breakdown, questionCount, rejectedCount, pendingCount, isApproved, isReviewed, isOverridden } = thisWeek;
 
   // 최근 주차 이력 (교사 수동 점수 및 지연 승인 반영)
   const weeklyHistory = getStudentWeeklyHistory({
@@ -51,10 +51,24 @@ export default function WeeklyScoreBanner({ currentUser, questions, portfolios }
     weeksCount: 6,
   });
 
-  // 상태 등별 스타일 및 아이콘 매핑 (경고등/격려등/도전등/축포 환영)
+  // 상태 등별 스타일 및 아이콘 매핑 (검토대기/경고등/격려등/도전등/축포 환영)
   const renderStatusLight = () => {
     switch (lightType) {
-      case 'warning': // 0점 (경고등)
+      case 'pending': // 질문 등록 후 교사 검토 대기 중 (0점)
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="relative flex items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-amber-300 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500 border-2 border-white shadow-xs"></span>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1 shadow-xs">
+              <Clock className="w-3.5 h-3.5 text-amber-700" />
+              <span>선생님 검토 대기 중 ⏳</span>
+            </span>
+          </div>
+        );
+
+      case 'warning': // 0점 (경고등 - 질문 없음)
         return (
           <div className="flex items-center space-x-2">
             <div className="relative flex items-center justify-center">
@@ -68,7 +82,7 @@ export default function WeeklyScoreBanner({ currentUser, questions, portfolios }
           </div>
         );
 
-      case 'encourage': // 80~89점 (격려의 등)
+      case 'encourage': // 80~89점 (격려의 등 - 반려 피드백 완료)
         return (
           <div className="flex items-center space-x-2">
             <div className="relative flex items-center justify-center">
@@ -236,6 +250,8 @@ export default function WeeklyScoreBanner({ currentUser, questions, portfolios }
             <Zap className="w-4 h-4 text-blue-500" />
           ) : score >= 80 ? (
             <Sparkles className="w-4 h-4 text-amber-500" />
+          ) : lightType === 'pending' ? (
+            <Clock className="w-4 h-4 text-amber-500" />
           ) : (
             <AlertTriangle className="w-4 h-4 text-rose-500 animate-pulse" />
           )}
@@ -245,10 +261,16 @@ export default function WeeklyScoreBanner({ currentUser, questions, portfolios }
 
       {/* 점수 산정 단계 칩 (시각적 진행 상태 안내) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5 text-[10px] text-center font-bold">
-        <div className={`p-2 rounded-xl border transition ${questionCount > 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100/80 text-slate-400 border-slate-200'}`}>
-          <div>1. 질문 등록</div>
+        <div className={`p-2 rounded-xl border transition ${isApproved || (rejectedCount && rejectedCount > 0) ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : questionCount > 0 ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-100/80 text-slate-400 border-slate-200'}`}>
+          <div>1. 질문 등록 & 검토</div>
           <div className="text-[9px] font-normal mt-0.5">
-            {questionCount > 0 ? `${questionCount}건 (${score >= 80 ? Math.min(89, score) : 80}점)` : '0점 (미등록)'}
+            {isApproved
+              ? `승인 완료 (${score}점)`
+              : rejectedCount > 0
+              ? `반려 피드백 ${rejectedCount}건 (${score}점)`
+              : questionCount > 0
+              ? `등록 ${questionCount}건 (검토 대기 0점)`
+              : '0점 (미등록)'}
           </div>
         </div>
 
