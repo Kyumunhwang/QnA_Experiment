@@ -15,6 +15,9 @@ import {
   getAppConfig,
   saveAppConfig,
   toggleSelectQuestion,
+  getManualScores,
+  saveManualScore,
+  deleteManualScore,
   getTeachers,
   verifyTeacher,
   addNewTeacher,
@@ -75,6 +78,7 @@ export function AppProvider({ children }) {
 
   const [questions, setQuestions] = useState([]);
   const [portfolios, setPortfolios] = useState([]);
+  const [manualScores, setManualScores] = useState({});
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -107,7 +111,45 @@ export function AppProvider({ children }) {
   const updateConfigAction = async (newConfig) => {
     const saved = await saveAppConfig(newConfig);
     setAppConfig(saved);
-    showToast('홈 화면 설정 및 테마가 성공적으로 저장되었습니다!', 'success');
+    showToast('설정이 성공적으로 저장되었습니다!', 'success');
+  };
+
+  const refreshManualScores = async () => {
+    try {
+      const scores = await getManualScores();
+      if (scores) setManualScores(scores);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveManualScoreAction = async ({ studentName, weekKey, score, memo }) => {
+    try {
+      const teacherName = currentTeacher?.teacher_name || '담당교사';
+      const res = await saveManualScore({ studentName, weekKey, score, memo, teacherName });
+      if (res.success) {
+        setManualScores(res.allScores);
+        showToast(`${studentName} 학생의 점수가 ${score}점으로 저장되었습니다.`, 'success');
+        return { success: true };
+      }
+    } catch (e) {
+      showToast('점수 수정 중 오류가 발생했습니다.', 'error');
+      return { success: false, error: e.message };
+    }
+  };
+
+  const deleteManualScoreAction = async (studentName, weekKey) => {
+    try {
+      const res = await deleteManualScore(studentName, weekKey);
+      if (res.success) {
+        setManualScores(res.allScores);
+        showToast(`${studentName} 학생의 점수가 시스템 자동 계산 점수로 복원되었습니다.`, 'info');
+        return { success: true };
+      }
+    } catch (e) {
+      showToast('점수 복원 오류', 'error');
+      return { success: false };
+    }
   };
 
   const login = async (gradeClass, studentName, password) => {
@@ -413,6 +455,7 @@ export function AppProvider({ children }) {
     refreshQuestions();
     refreshPortfolios();
     refreshConfig();
+    refreshManualScores();
   }, []);
 
   useEffect(() => {
@@ -451,6 +494,10 @@ export function AppProvider({ children }) {
         updateStudentAction,
         deleteStudentAction,
         promoteStudentsAction,
+        manualScores,
+        refreshManualScores,
+        saveManualScoreAction,
+        deleteManualScoreAction,
         updateQuestionStatusAndFeedback,
         reviewPortfolioAction,
         refreshStudents,

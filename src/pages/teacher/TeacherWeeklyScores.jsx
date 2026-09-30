@@ -20,33 +20,62 @@ import {
   X,
   Sparkles,
   BarChart3,
-  Flame
+  Flame,
+  Edit3,
+  RotateCcw,
+  Clock,
+  ShieldCheck,
+  Save
 } from 'lucide-react';
 import {
   getClassWeeklySummary,
   getStudentWeeklyHistory,
   getRecentWeeks,
   getWeekKey,
-  getWeekDetails
+  getWeekDetails,
+  isWeekWithinWindow
 } from '../../utils/scoring';
 
 export default function TeacherWeeklyScores() {
-  const { studentRoster, classList, questions, portfolios } = useApp();
+  const {
+    studentRoster,
+    classList,
+    questions,
+    portfolios,
+    manualScores = {},
+    saveManualScoreAction,
+    deleteManualScoreAction,
+    appConfig = {},
+    updateConfigAction,
+    currentTeacher,
+    showToast,
+  } = useApp();
 
   const recentWeeks = getRecentWeeks(8);
   const [selectedWeek, setSelectedWeek] = useState(getWeekKey());
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('score_desc'); // 'score_desc' | 'score_asc' | 'name_asc'
+  
+  // 모달 상태
   const [modalStudent, setModalStudent] = useState(null);
+  const [editScoreTarget, setEditScoreTarget] = useState(null); // { studentName, gradeClass, weekKey, currentScore, systemScore, memo }
+  const [editScoreValue, setEditScoreValue] = useState(90);
+  const [editScoreMemo, setEditScoreMemo] = useState('');
+  const [isSavingScore, setIsSavingScore] = useState(false);
 
-  // 주차 요약 데이터 계산
+  const windowWeeks = appConfig?.score_display_weeks || 2;
+  const isSelectedWeekEditable = isWeekWithinWindow(selectedWeek, windowWeeks);
+
+  // 주차 요약 데이터 계산 (수동 점수 및 공개 기간 연동)
   const classSummary = getClassWeeklySummary({
     students: studentRoster,
     gradeClass: selectedClass,
     weekKey: selectedWeek,
     questions,
     portfolios,
+    manualScores,
+    windowWeeks,
   });
 
   const weekInfo = getWeekDetails(selectedWeek);
@@ -71,32 +100,126 @@ export default function TeacherWeeklyScores() {
         studentName: modalStudent.studentName,
         questions,
         portfolios,
+        manualScores,
         weeksCount: 8,
       })
     : [];
+
+  // 점수 공개/입력 허용 기간 변경 핸들러
+  const handleWindowChange = async (e) => {
+    const newWeeks = Number(e.target.value);
+    await updateConfigAction({ score_display_weeks: newWeeks });
+    showToast(`점수 공개 및 입력 기간이 [최근 ${newWeeks}주간]으로 설정되었습니다.`, 'success');
+  };
+
+  // 점수 수정 모달 열기
+  const handleOpenScoreEdit = (student, weekKey = selectedWeek) => {
+    const scoreKey = `${student.studentName}_${weekKey}`;
+    const existingOverride = manualScores[scoreKey];
+
+    setEditScoreTarget({
+      studentName: student.studentName,
+      gradeClass: student.grade_class || student.gradeClass || selectedClass,
+      weekKey,
+      weekInfo: getWeekDetails(weekKey),
+      systemScore: student.systemScore !== undefined ? student.systemScore : student.score,
+      currentScore: student.score,
+      isOverridden: Boolean(existingOverride),
+    });
+
+    setEditScoreValue(existingOverride ? existingOverride.score : student.score);
+    setEditScoreMemo(existingOverride ? existingOverride.memo || '' : '');
+  };
+
+  // 점수 수정 저장 핸들러
+  const handleSaveScore = async () => {
+    if (!editScoreTarget) return;
+
+    const numVal = Math.max(0, Math.min(100, Number(editScoreValue)));
+    if (isNaN(numVal)) {
+      showToast('올바른 점수(0~100)를 입력해주세요.', 'error');
+      return;
+    }
+
+    setIsSavingScore(true);
+    try {
+      const res = await saveManualScoreAction({
+        studentName: editScoreTarget.studentName,
+        weekKey: editScoreTarget.weekKey,
+        score: numVal,
+        memo: editScoreMemo,
+        updatedBy: currentTeacher?.teacher_name || '교사',
+      });
+
+      if (res.success) {
+        showToast(`${editScoreTarget.studentName} 학생 점수가 ${numVal}점으로 저장되었습니다.`, 'success');
+        setEditScoreTarget(null);
+      }
+    } finally {
+      setIsSavingScore(false);
+    }
+  };
+
+  // 시스템 자동 계산 점수로 복원 핸들러
+  const handleResetToSystemScore = async () => {
+    if (!editScoreTarget) return;
+
+    if (!window.confirm(`${editScoreTarget.studentName} 학생의 점수를 시스템 자동 계산 점수로 복원하시겠습니까?`)) {
+      return;
+    }
+
+    setIsSavingScore(true);
+    try {
+      const res = await deleteManualScoreAction(editScoreTarget.studentName, editScoreTarget.weekKey);
+      if (res.success) {
+        showToast('시스템 자동 계산 점수로 복원되었습니다.', 'info');
+        setEditScoreTarget(null);
+      }
+    } finally {
+      setIsSavingScore(false);
+    }
+  };
 
   return (
     <div className="space-y-4 pb-16 animate-fadeIn">
       <TeacherNav />
 
-      {/* 헤더 안내 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      {/* 헤더 안내 및 설정 컨트롤 */}
+      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center space-x-2">
             <Trophy className="w-5 h-5 text-amber-500" />
             <span>학생별 주간 탐구 점수 평가 대시보드</span>
           </h2>
-          <p className="text-xs text-slate-500">
-            매주 질문 수와 탐구 단계(실험·실패분석·결론·도장)에 따른 학생 점수(0~100점) 및 매주 전체 결과를 확인합니다.
+          <p className="text-xs text-slate-500 mt-1">
+            질문 등록(80~89점), 승인(90점), 일지 단계(+3점씩), 도장(100점) 점수를 조회하고 필요 시 교사가 직접 점수를 수정·부여합니다.
           </p>
+        </div>
+
+        {/* 점수 공개 및 입력 허용 기간 설정 (최장 2주) */}
+        <div className="flex items-center space-x-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200 shrink-0">
+          <Clock className="w-4 h-4 text-eureka-600" />
+          <div className="text-[11px]">
+            <span className="font-extrabold text-slate-700 block">점수 공개 및 입력 허용 기간</span>
+            <div className="flex items-center space-x-1.5 mt-0.5">
+              <select
+                value={windowWeeks}
+                onChange={handleWindowChange}
+                className="bg-white text-xs font-black text-slate-800 border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-eureka-500"
+              >
+                <option value={1}>최근 1주간 (당해 주차만)</option>
+                <option value={2}>최근 2주간 (당해 + 직전 주차 · 최장)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 필터 바: 주차 선택 & 반 선택 */}
+      {/* 필터 바: 주차 선택 & 반 선택 & 입력 가능 배지 */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* 주차 선택 드롭다운 */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <Calendar className="w-4 h-4 text-eureka-600 shrink-0" />
             <span className="text-xs font-bold text-slate-700 shrink-0">평가 주차:</span>
             <select
@@ -106,10 +229,22 @@ export default function TeacherWeeklyScores() {
             >
               {recentWeeks.map((w, idx) => (
                 <option key={w.weekKey} value={w.weekKey}>
-                  {w.label} ({w.dateRange}) {idx === 0 ? '★ 이번 주' : ''}
+                  {w.label} ({w.dateRange}) {idx === 0 ? '★ 이번 주' : idx === 1 ? '· 지난 주' : ''}
                 </option>
               ))}
             </select>
+
+            {/* 입력 가능 기간 여부 배지 */}
+            {isSelectedWeekEditable ? (
+              <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                <span>점수 수정 및 입력 가능 주간</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                <span>🔒 기간 마감 (열람 전용)</span>
+              </span>
+            )}
           </div>
 
           {/* 반 선택 드롭다운 */}
@@ -132,7 +267,7 @@ export default function TeacherWeeklyScores() {
         </div>
 
         {/* 주차 요약 KPI 카드 */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
           <div className="bg-eureka-50/80 border border-eureka-200 rounded-2xl p-3">
             <span className="text-[11px] font-bold text-eureka-800 flex items-center space-x-1">
               <TrendingUp className="w-3.5 h-3.5 text-eureka-600" />
@@ -148,13 +283,13 @@ export default function TeacherWeeklyScores() {
           <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-3">
             <span className="text-[11px] font-bold text-purple-800 flex items-center space-x-1">
               <Trophy className="w-3.5 h-3.5 text-purple-600" />
-              <span>100점 만점 달성</span>
+              <span>100점 만점</span>
             </span>
             <div className="text-2xl font-black text-purple-900 mt-1">
               {classSummary.count100}
               <span className="text-xs font-bold text-purple-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-purple-600 font-medium">최종 도장 통과 학생</p>
+            <p className="text-[10px] text-purple-600 font-medium">최종 도장 통과</p>
           </div>
 
           <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-3">
@@ -166,7 +301,7 @@ export default function TeacherWeeklyScores() {
               {classSummary.countChallenge}
               <span className="text-xs font-bold text-blue-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-blue-600 font-medium">승인 및 일지 진행 중</p>
+            <p className="text-[10px] text-blue-600 font-medium">승인 및 일지 진행</p>
           </div>
 
           <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3">
@@ -178,10 +313,10 @@ export default function TeacherWeeklyScores() {
               {classSummary.countEncourage}
               <span className="text-xs font-bold text-amber-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-amber-600 font-medium">질문 등록 (미승인/반려)</p>
+            <p className="text-[10px] text-amber-600 font-medium">질문 등록 (미승인)</p>
           </div>
 
-          <div className="bg-rose-50/80 border border-rose-200 rounded-2xl p-3 col-span-2 sm:col-span-1">
+          <div className="bg-rose-50/80 border border-rose-200 rounded-2xl p-3">
             <span className="text-[11px] font-bold text-rose-800 flex items-center space-x-1">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
               <span>0점 (미참여)</span>
@@ -190,7 +325,19 @@ export default function TeacherWeeklyScores() {
               {classSummary.countZero}
               <span className="text-xs font-bold text-rose-700 ml-1">명</span>
             </div>
-            <p className="text-[10px] text-rose-600 font-medium">질문 등록 독려 필요</p>
+            <p className="text-[10px] text-rose-600 font-medium">독려 필요</p>
+          </div>
+
+          <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-3">
+            <span className="text-[11px] font-bold text-indigo-800 flex items-center space-x-1">
+              <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+              <span>교사 직접 조정</span>
+            </span>
+            <div className="text-2xl font-black text-indigo-900 mt-1">
+              {classSummary.countOverridden}
+              <span className="text-xs font-bold text-indigo-700 ml-1">명</span>
+            </div>
+            <p className="text-[10px] text-indigo-600 font-medium">수동 점수 부여</p>
           </div>
         </div>
       </div>
@@ -262,22 +409,31 @@ export default function TeacherWeeklyScores() {
             return (
               <div
                 key={idx}
-                onClick={() => setModalStudent(st)}
-                className={`p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-eureka-400 shadow-xs hover:shadow-md transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                className={`p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-eureka-400 shadow-xs hover:shadow-md transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   is100 ? 'ring-1 ring-purple-300 bg-purple-50/20' : ''
                 }`}
               >
                 {/* 좌측: 반, 이름, 상태등 뱃지 */}
-                <div className="flex items-center space-x-3">
+                <div
+                  onClick={() => setModalStudent(st)}
+                  className="flex items-center space-x-3 cursor-pointer min-w-0 flex-1"
+                >
                   <span className="bg-slate-800 text-white font-black text-[10px] px-2 py-0.5 rounded-md shrink-0">
                     {st.grade_class}
                   </span>
                   <div className="min-w-0">
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-sm font-black text-slate-900">{st.studentName}</span>
+                    <div className="flex items-center space-x-1.5 flex-wrap">
+                      <span className="text-sm font-black text-slate-900 hover:text-eureka-700 transition">
+                        {st.studentName}
+                      </span>
                       {is100 && (
                         <span className="text-[10px] font-black text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded-md">
                           💮 100점 만점
+                        </span>
+                      )}
+                      {st.isOverridden && (
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-1.5 py-0.2 rounded-md">
+                          교사 조정 ({st.overrideRecord?.score}점)
                         </span>
                       )}
                     </div>
@@ -288,7 +444,7 @@ export default function TeacherWeeklyScores() {
                 </div>
 
                 {/* 중앙: 세부 요약 태그 */}
-                <div className="flex items-center space-x-2 text-[10px] font-bold">
+                <div className="flex items-center space-x-1.5 text-[10px] font-bold flex-wrap">
                   <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                     질문 {st.questionCount}건
                   </span>
@@ -317,8 +473,8 @@ export default function TeacherWeeklyScores() {
                   )}
                 </div>
 
-                {/* 우측: 점수 & 클릭 안내 화살표 */}
-                <div className="flex items-center justify-between sm:justify-end space-x-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                {/* 우측: 점수 & 점수 수정 버튼 & 이력 버튼 */}
+                <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                   {/* 상태등 아이콘 */}
                   <div className="flex items-center space-x-1">
                     {is100 ? (
@@ -344,14 +500,29 @@ export default function TeacherWeeklyScores() {
                     )}
                   </div>
 
-                  <div className="text-right">
+                  <div className="text-right px-1">
                     <span className="text-xl sm:text-2xl font-black text-slate-900">{st.score}</span>
                     <span className="text-xs font-bold text-slate-600 ml-0.5">점</span>
                   </div>
 
-                  <div className="p-1 text-slate-400 group-hover:text-eureka-600 transition">
+                  {/* 점수 수정 버튼 */}
+                  <button
+                    onClick={() => handleOpenScoreEdit(st, selectedWeek)}
+                    className="p-1.5 text-xs font-bold text-eureka-700 bg-eureka-50 hover:bg-eureka-100 border border-eureka-200 rounded-xl transition flex items-center space-x-1 shadow-2xs"
+                    title="점수 직접 수정 및 사유 메모"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">점수 수정</span>
+                  </button>
+
+                  {/* 이력 보기 버튼 */}
+                  <button
+                    onClick={() => setModalStudent(st)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
+                    title="주차별 전체 점수 이력 보기"
+                  >
                     <ChevronRight className="w-4 h-4" />
-                  </div>
+                  </button>
                 </div>
               </div>
             );
@@ -359,7 +530,115 @@ export default function TeacherWeeklyScores() {
         )}
       </div>
 
-      {/* 학생 클릭 시: 매주 전체 점수 결과 모달 (Student Weekly History Modal) */}
+      {/* 교사 점수 수정/부여 팝업 모달 */}
+      {editScoreTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">교사 점수 수정 및 직접 부여</h3>
+                  <p className="text-[11px] text-slate-500">
+                    {editScoreTarget.gradeClass} {editScoreTarget.studentName} 학생 · {editScoreTarget.weekInfo.label}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditScoreTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 현재 상태 정보 */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+              <div className="flex justify-between text-slate-600">
+                <span>시스템 자동 계산 점수:</span>
+                <span className="font-bold text-slate-800">{editScoreTarget.systemScore}점</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>현재 적용된 점수:</span>
+                <span className="font-extrabold text-indigo-600">{editScoreTarget.currentScore}점</span>
+              </div>
+            </div>
+
+            {/* 점수 입력 및 빠른 프리셋 */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">
+                부여할 점수 (0 ~ 100점)
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editScoreValue}
+                  onChange={(e) => setEditScoreValue(e.target.value)}
+                  className="w-full text-2xl font-black text-center text-slate-900 bg-slate-50 border-2 border-indigo-200 focus:border-indigo-500 rounded-2xl py-2 focus:outline-none"
+                />
+                <span className="text-lg font-black text-slate-600">점</span>
+              </div>
+
+              {/* 점수 퀵 버튼 */}
+              <div className="flex items-center space-x-1.5 pt-1">
+                {[80, 85, 90, 95, 100].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setEditScoreValue(val)}
+                    className="flex-1 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                  >
+                    {val}점
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 사유 / 메모 입력 */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">
+                점수 조정 사유 및 피드백 메모 (선택)
+              </label>
+              <textarea
+                rows="2"
+                value={editScoreMemo}
+                onChange={(e) => setEditScoreMemo(e.target.value)}
+                placeholder="예: 보고서 추가 작성 및 적극적 질문 참여로 5점 가산"
+                className="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* 액션 버튼 */}
+            <div className="space-y-2 pt-2 border-t">
+              <button
+                onClick={handleSaveScore}
+                disabled={isSavingScore}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-sm"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingScore ? '저장 중...' : '점수 수정 저장'}</span>
+              </button>
+
+              {editScoreTarget.isOverridden && (
+                <button
+                  onClick={handleResetToSystemScore}
+                  disabled={isSavingScore}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>시스템 자동 계산 점수로 복원</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 학생 클릭 시: 매주 전체 점수 결과 모달 (Student Weekly History Dashboard) */}
       {modalStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-200">
@@ -379,7 +658,7 @@ export default function TeacherWeeklyScores() {
                     </h3>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    매주 질문 수, 단계 진행도, 최종 점수 트렌드를 한눈에 확인합니다.
+                    매주 질문 수, 단계 진행도, 최종 점수 트렌드를 한눈에 확인하고 필요 시 점수를 수정합니다.
                   </p>
                 </div>
               </div>
@@ -423,12 +702,17 @@ export default function TeacherWeeklyScores() {
                     }`}
                   >
                     <div>
-                      <div className="flex items-center space-x-1.5">
+                      <div className="flex items-center space-x-1.5 flex-wrap">
                         <span className="text-xs font-black text-slate-900">{item.weekInfo.label}</span>
                         <span className="text-[10px] text-slate-400">({item.weekInfo.dateRange})</span>
                         {item.weekKey === getWeekKey() && (
                           <span className="bg-eureka-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-md">
                             이번 주
+                          </span>
+                        )}
+                        {item.isOverridden && (
+                          <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.2 rounded-md">
+                            교사 조정
                           </span>
                         )}
                       </div>
@@ -444,22 +728,33 @@ export default function TeacherWeeklyScores() {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="text-lg font-black text-slate-900">
-                        {item.score}
-                        <span className="text-xs font-bold text-slate-500 ml-0.5">점</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="text-right shrink-0">
+                        <div className="text-lg font-black text-slate-900">
+                          {item.score}
+                          <span className="text-xs font-bold text-slate-500 ml-0.5">점</span>
+                        </div>
+                        <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                          item.score === 100
+                            ? 'bg-purple-100 text-purple-800'
+                            : item.score >= 90
+                            ? 'bg-blue-100 text-blue-800'
+                            : item.score >= 80
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}>
+                          {item.score === 100 ? '축포 (100점)' : item.score >= 90 ? '도전 단계' : item.score >= 80 ? '격려 단계' : '미참여'}
+                        </span>
                       </div>
-                      <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
-                        item.score === 100
-                          ? 'bg-purple-100 text-purple-800'
-                          : item.score >= 90
-                          ? 'bg-blue-100 text-blue-800'
-                          : item.score >= 80
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-200 text-slate-500'
-                      }`}>
-                        {item.score === 100 ? '축포 (100점)' : item.score >= 90 ? '도전 단계' : item.score >= 80 ? '격려 단계' : '미참여'}
-                      </span>
+
+                      {/* 이력 내에서도 점수 수정 바로가기 버튼 */}
+                      <button
+                        onClick={() => handleOpenScoreEdit(modalStudent, item.weekKey)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-lg transition"
+                        title="이 주차 점수 수정"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );

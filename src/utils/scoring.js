@@ -12,6 +12,11 @@
  *     - Step 3 실패분석/가설수정: 96점
  *     - Step 4 결론 도출: 99점
  * - 교사 최종 확인 도장(is_reviewed) 완료 시: +1점 추가로 100점 만점! (축포 환영)
+ * 
+ * [교사 권한 & 주간 연동 기능]
+ * - 교사가 점수를 직접 수정/오버라이드할 수 있음
+ * - 교사가 승인한 점수는 한 주가 지나더라도 해당 주차 점수에 항상 업데이트 반영
+ * - 교사가 점수를 보여줄 수 있는 기간 설정 지원 (1주 ~ 최장 2주)
  */
 
 /**
@@ -23,7 +28,6 @@ export function getWeekKey(dateInput = new Date()) {
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return getWeekKey(new Date());
 
-  // ISO-8601 week number calculation
   const target = new Date(d.valueOf());
   const dayNr = (d.getDay() + 6) % 7; // Monday = 0, Sunday = 6
   target.setDate(target.getDate() - dayNr + 3);
@@ -40,7 +44,7 @@ export function getWeekKey(dateInput = new Date()) {
 /**
  * 주차 키로부터 사람이 읽기 편한 라벨 및 날짜 범위 반환
  * @param {string} weekKey 예: "2026-W40"
- * @returns {{ label: string, dateRange: string }}
+ * @returns {{ label: string, dateRange: string, startDate: Date, endDate: Date }}
  */
 export function getWeekDetails(weekKey) {
   if (!weekKey || !weekKey.includes('-W')) {
@@ -52,7 +56,6 @@ export function getWeekDetails(weekKey) {
   const year = parseInt(yearStr, 10);
   const week = parseInt(weekStr, 10);
 
-  // 해당 주차의 월요일 구하기
   const simple = new Date(year, 0, 1 + (week - 1) * 7);
   const dow = simple.getDay();
   const ISOweekStart = simple;
@@ -80,6 +83,18 @@ export function getWeekDetails(weekKey) {
 }
 
 /**
+ * 직전 주차(Previous Week) 키 계산 (예: "2026-W40" -> "2026-W39")
+ * @param {string} weekKey 
+ * @returns {string}
+ */
+export function getPreviousWeekKey(weekKey = getWeekKey()) {
+  const details = getWeekDetails(weekKey);
+  const prevDate = new Date(details.startDate);
+  prevDate.setDate(prevDate.getDate() - 7);
+  return getWeekKey(prevDate);
+}
+
+/**
  * 최근 N개 주차 목록 반환 (현재 주차 포함 최신순)
  * @param {number} count 
  * @returns {Array<{ weekKey: string, label: string, dateRange: string }>}
@@ -100,13 +115,30 @@ export function getRecentWeeks(count = 6) {
 }
 
 /**
- * 특정 학생의 특정 주차 점수를 계산
+ * 특정 주차가 현재 기준 교사 점수 공개/입력 허용 기간(최장 2주) 이내인지 확인
+ * @param {string} weekKey 
+ * @param {number} windowWeeks 1 또는 2 (기본값: 2)
+ * @returns {boolean}
+ */
+export function isWeekWithinWindow(weekKey, windowWeeks = 2) {
+  const curKey = getWeekKey();
+  if (weekKey === curKey) return true;
+  if (windowWeeks >= 2) {
+    const prevKey = getPreviousWeekKey(curKey);
+    if (weekKey === prevKey) return true;
+  }
+  return false;
+}
+
+/**
+ * 특정 학생의 특정 주차 점수를 계산 (교사 수동 점수 및 지연 승인 반영)
  * 
  * @param {Object} params
  * @param {string} params.studentName 학생 이름
  * @param {string} [params.weekKey] 대상 주차 키 (생략 시 현재 주차)
  * @param {Array} params.questions 전체 질문 배열
  * @param {Array} params.portfolios 전체 포트폴리오 배열
+ * @param {Object} [params.manualScores={}] 교사가 수정한 점수 맵
  * @returns {Object} 점수 및 평가 상세 정보
  */
 export function calculateStudentWeeklyScore({
@@ -114,6 +146,7 @@ export function calculateStudentWeeklyScore({
   weekKey = getWeekKey(),
   questions = [],
   portfolios = [],
+  manualScores = {},
 }) {
   const targetWeek = weekKey;
   const weekInfo = getWeekDetails(targetWeek);
@@ -131,13 +164,14 @@ export function calculateStudentWeeklyScore({
   const questionCount = weekQuestions.length;
 
   // 2. 질문 승인 여부
+  // 한 주가 지나더라도 해당 질문이 교사에 의해 승인되었으면 승인 점수 반영!
   const approvedQuestions = weekQuestions.filter(
     (q) => q.status === 'approved' || Boolean(q.is_selected)
   );
   const isApproved = approvedQuestions.length > 0;
 
   // 3. 포트폴리오 탐색
-  // 해당 주차의 승인 질문과 연계된 포트폴리오이거나, 해당 학생의 주간 진행 포트폴리오
+  // 해당 주차의 승인 질문과 연계된 포트폴리오이거나, 해당 학생의 포트폴리오
   const studentPf = portfolios.find((p) => {
     if (p.student_name !== studentName) return false;
     // 승인 질문과 직접 id 매칭
@@ -153,8 +187,8 @@ export function calculateStudentWeeklyScore({
   const hasStep4 = Boolean(studentPf?.step4_conclusion && String(studentPf.step4_conclusion).trim().length > 0);
   const isReviewed = Boolean(studentPf?.is_reviewed);
 
-  // 4. 점수 계산
-  let score = 0;
+  // 4. 시스템 자동 점수 계산
+  let systemScore = 0;
   let status = 'NONE'; // 'NONE' | 'ENCOURAGE' | 'CHALLENGE' | 'PERFECT'
   let breakdown = {
     baseQuestions: 0,
@@ -166,55 +200,51 @@ export function calculateStudentWeeklyScore({
     finalStampBonus: 0,
   };
   let message = '';
-  let lightType = 'warning'; // 'warning' (경고등) | 'encourage' (격려등) | 'challenge' (도전등) | 'perfect' (축포환영)
+  let lightType = 'warning'; // 'warning' | 'encourage' | 'challenge' | 'perfect'
 
   if (questionCount === 0) {
-    // [0점] 질문 없음
-    score = 0;
+    systemScore = 0;
     status = 'NONE';
     lightType = 'warning';
     message = '이번 주 아직 등록된 호기심 질문이 없습니다. 질문을 등록하고 탐구를 시작해 보세요!';
   } else if (!isApproved) {
-    // [80점 ~ 89점] 질문 등록 완료 (반려 포함, 미승인 상태)
     status = 'ENCOURAGE';
     lightType = 'encourage';
 
     if (questionCount === 1) {
-      score = 80;
+      systemScore = 80;
       breakdown.baseQuestions = 80;
     } else if (questionCount === 2) {
-      score = 85;
+      systemScore = 85;
       breakdown.baseQuestions = 80;
       breakdown.bonusQuestions = 5;
     } else {
-      // 3개 이상: 85 + (questionCount - 2), 최대 89점
       const bonus = Math.min(4, questionCount - 2);
-      score = 85 + bonus;
+      systemScore = 85 + bonus;
       breakdown.baseQuestions = 80;
       breakdown.bonusQuestions = 5 + bonus;
     }
 
     message = '좋은 출발입니다! 선생님의 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요.';
   } else {
-    // [90점 ~ 100점] 교사 승인 완료
     breakdown.approvalBase = 90;
-    score = 90;
+    systemScore = 90;
 
     if (hasStep2) {
-      score += 3; // 93
+      systemScore += 3; // 93
       breakdown.step2Bonus = 3;
     }
     if (hasStep3) {
-      score += 3; // 96
+      systemScore += 3; // 96
       breakdown.step3Bonus = 3;
     }
     if (hasStep4) {
-      score += 3; // 99
+      systemScore += 3; // 99
       breakdown.step4Bonus = 3;
     }
 
     if (isReviewed) {
-      score = 100; // 최종 확인 도장 승인 시 +1점 추가로 100점
+      systemScore = 100;
       breakdown.finalStampBonus = 1;
       status = 'PERFECT';
       lightType = 'perfect';
@@ -234,14 +264,45 @@ export function calculateStudentWeeklyScore({
     }
   }
 
-  // 100점 초과 방지
-  score = Math.min(100, Math.max(0, score));
+  systemScore = Math.min(100, Math.max(0, systemScore));
+
+  // 5. 교사 수동 수정 점수(Manual Override) 확인
+  const scoreKey = `${studentName}_${targetWeek}`;
+  const overrideRecord = manualScores[scoreKey];
+  const isOverridden = Boolean(overrideRecord && overrideRecord.score !== undefined);
+
+  let finalScore = isOverridden ? Number(overrideRecord.score) : systemScore;
+  finalScore = Math.min(100, Math.max(0, finalScore));
+
+  // 오버라이드된 점수에 맞춰 상태 및 램프 재계산
+  if (isOverridden) {
+    if (finalScore === 100) {
+      status = 'PERFECT';
+      lightType = 'perfect';
+    } else if (finalScore >= 90) {
+      status = 'CHALLENGE';
+      lightType = 'challenge';
+    } else if (finalScore >= 80) {
+      status = 'ENCOURAGE';
+      lightType = 'encourage';
+    } else {
+      status = 'NONE';
+      lightType = 'warning';
+    }
+
+    message = overrideRecord.memo
+      ? `선생님 평가 조정 점수: "${overrideRecord.memo}" (${overrideRecord.updated_by || '교사'})`
+      : `선생님이 직접 부여한 점수입니다. (${overrideRecord.updated_by || '교사'})`;
+  }
 
   return {
     studentName,
     weekKey: targetWeek,
     weekInfo,
-    score,
+    score: finalScore,
+    systemScore,
+    isOverridden,
+    overrideRecord,
     status,
     lightType,
     message,
@@ -258,19 +319,63 @@ export function calculateStudentWeeklyScore({
 }
 
 /**
- * 특정 학생의 최근 N개 주차별 점수 이력(Weekly Score History)을 계산
+ * 학생의 [이번 주] 및 [지난 주] 비교 점수 객체 계산
  * 
  * @param {Object} params
  * @param {string} params.studentName
  * @param {Array} params.questions
  * @param {Array} params.portfolios
- * @param {number} [params.weeksCount=8]
- * @returns {Array<Object>} 주차별 점수 객체 배열 (최신순)
+ * @param {Object} [params.manualScores={}]
+ * @param {number} [params.windowWeeks=2] 교사 설정 기간 (최장 2주)
+ * @returns {Object} 이번 주, 지난 주, 변화량(diff)
+ */
+export function getStudentComparisonScores({
+  studentName,
+  questions = [],
+  portfolios = [],
+  manualScores = {},
+  windowWeeks = 2,
+}) {
+  const thisWeekKey = getWeekKey();
+  const lastWeekKey = getPreviousWeekKey(thisWeekKey);
+
+  const thisWeek = calculateStudentWeeklyScore({
+    studentName,
+    weekKey: thisWeekKey,
+    questions,
+    portfolios,
+    manualScores,
+  });
+
+  const lastWeek = calculateStudentWeeklyScore({
+    studentName,
+    weekKey: lastWeekKey,
+    questions,
+    portfolios,
+    manualScores,
+  });
+
+  const diff = thisWeek.score - lastWeek.score;
+  const isWithinWindow = isWeekWithinWindow(lastWeekKey, windowWeeks);
+
+  return {
+    thisWeek,
+    lastWeek,
+    diff,
+    trend: diff > 0 ? 'up' : diff < 0 ? 'down' : 'same',
+    windowWeeks,
+    isWithinWindow,
+  };
+}
+
+/**
+ * 특정 학생의 최근 N개 주차별 점수 이력(Weekly Score History)을 계산
  */
 export function getStudentWeeklyHistory({
   studentName,
   questions = [],
   portfolios = [],
+  manualScores = {},
   weeksCount = 8,
 }) {
   const recentWeeks = getRecentWeeks(weeksCount);
@@ -280,20 +385,13 @@ export function getStudentWeeklyHistory({
       weekKey: w.weekKey,
       questions,
       portfolios,
+      manualScores,
     })
   );
 }
 
 /**
  * 특정 반(또는 전체)의 특정 주차 점수 현황 집계
- * 
- * @param {Object} params
- * @param {Array} params.students 학생 명렬표 배열
- * @param {string} [params.gradeClass='ALL'] 학급 필터
- * @param {string} [params.weekKey] 대상 주차 키
- * @param {Array} params.questions
- * @param {Array} params.portfolios
- * @returns {Object} 반별 학생 점수 목록 및 요약 통계
  */
 export function getClassWeeklySummary({
   students = [],
@@ -301,6 +399,8 @@ export function getClassWeeklySummary({
   weekKey = getWeekKey(),
   questions = [],
   portfolios = [],
+  manualScores = {},
+  windowWeeks = 2,
 }) {
   const filteredStudents =
     gradeClass === 'ALL'
@@ -313,6 +413,7 @@ export function getClassWeeklySummary({
       weekKey,
       questions,
       portfolios,
+      manualScores,
     });
     return {
       ...scoreData,
@@ -320,7 +421,6 @@ export function getClassWeeklySummary({
     };
   });
 
-  // 점수 내림차순 정렬
   studentScores.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     if (b.questionCount !== a.questionCount) return b.questionCount - a.questionCount;
@@ -335,17 +435,21 @@ export function getClassWeeklySummary({
   const countChallenge = studentScores.filter((s) => s.score >= 90 && s.score < 100).length;
   const countEncourage = studentScores.filter((s) => s.score >= 80 && s.score < 90).length;
   const countZero = studentScores.filter((s) => s.score === 0).length;
+  const countOverridden = studentScores.filter((s) => s.isOverridden).length;
 
   return {
     gradeClass,
     weekKey,
     weekInfo: getWeekDetails(weekKey),
+    windowWeeks,
+    isEditable: isWeekWithinWindow(weekKey, windowWeeks),
     totalCount,
     avgScore,
     count100,
     countChallenge,
     countEncourage,
     countZero,
+    countOverridden,
     studentScores,
   };
 }

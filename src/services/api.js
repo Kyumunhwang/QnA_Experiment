@@ -8,6 +8,7 @@ const STORAGE_KEY_STUDENTS = 'science_eureka_students';
 const STORAGE_KEY_QUESTIONS = 'science_eureka_questions';
 const STORAGE_KEY_PORTFOLIOS = 'science_eureka_portfolios';
 const STORAGE_KEY_CONFIG = 'science_eureka_config';
+const STORAGE_KEY_MANUAL_SCORES = 'science_eureka_manual_scores';
 const STORAGE_KEY_API_URL = 'science_eureka_gas_api_url';
 
 export const DEFAULT_CLASSES = ['M6', 'M7', 'M8', 'H9', 'H10', 'H11', 'H12'];
@@ -32,6 +33,7 @@ const INITIAL_MOCK_CONFIG = {
   banner_title: '일상의 사소한 호기심이 위대한 과학 발견이 됩니다!',
   banner_desc: '호기심 질문을 등록하면 선생님이 검토 후 탐구 과제로 승인합니다. 실패는 더 정확한 답을 찾아가는 최고의 디딤돌입니다!',
   theme_color: 'emerald',
+  score_display_weeks: 2, // 점수 공개 및 교사 입력 허용 기간 (최장 2주)
 };
 
 // 초기 교사 명렬표 (슈퍼유저: hwang / 5816 / 황규문 선생님)
@@ -765,4 +767,83 @@ export async function toggleSelectQuestion(questionId, isSelected) {
   const target = list.find(q => q.id === questionId);
   const nextStatus = isSelected !== undefined ? (isSelected ? 'approved' : 'pending') : (target?.is_selected ? 'pending' : 'approved');
   return await updateQuestionStatus(questionId, nextStatus);
+}
+
+/* ==========================================================================
+   교사 수동 점수 수정 (Manual Score Override) API
+   ========================================================================== */
+
+/** 교사가 수정한 점수 목록 조회 */
+export async function getManualScores() {
+  const apiUrl = getGasApiUrl();
+  if (apiUrl) {
+    try {
+      const res = await fetch(`${apiUrl}?action=getManualScores`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setLocal(STORAGE_KEY_MANUAL_SCORES, json.data);
+        return json.data;
+      }
+    } catch (err) {}
+  }
+  return getLocal(STORAGE_KEY_MANUAL_SCORES, {});
+}
+
+/** 교사의 학생 주간 점수 수정 및 저장 */
+export async function saveManualScore({ studentName, weekKey, score, memo = '', teacherName = '교사' }) {
+  const currentScores = getLocal(STORAGE_KEY_MANUAL_SCORES, {});
+  const scoreKey = `${studentName}_${weekKey}`;
+
+  const updatedRecord = {
+    student_name: studentName,
+    week_key: weekKey,
+    score: Number(score),
+    memo: memo.trim(),
+    updated_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+    updated_by: teacherName,
+  };
+
+  const newScores = {
+    ...currentScores,
+    [scoreKey]: updatedRecord,
+  };
+
+  setLocal(STORAGE_KEY_MANUAL_SCORES, newScores);
+
+  const apiUrl = getGasApiUrl();
+  if (apiUrl) {
+    try {
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'saveManualScore', ...updatedRecord }),
+      });
+    } catch (err) {}
+  }
+
+  return { success: true, record: updatedRecord, allScores: newScores };
+}
+
+/** 교사의 수동 점수 수정 취소 (시스템 자동 계산 점수로 복원) */
+export async function deleteManualScore(studentName, weekKey) {
+  const currentScores = getLocal(STORAGE_KEY_MANUAL_SCORES, {});
+  const scoreKey = `${studentName}_${weekKey}`;
+
+  if (currentScores[scoreKey]) {
+    delete currentScores[scoreKey];
+    setLocal(STORAGE_KEY_MANUAL_SCORES, { ...currentScores });
+  }
+
+  const apiUrl = getGasApiUrl();
+  if (apiUrl) {
+    try {
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'deleteManualScore', student_name: studentName, week_key: weekKey }),
+      });
+    } catch (err) {}
+  }
+
+  return { success: true, allScores: currentScores };
 }
