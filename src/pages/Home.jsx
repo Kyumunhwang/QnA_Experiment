@@ -43,8 +43,12 @@ export default function Home() {
   // 테마 색상 그라디언트 매핑
   const currentTheme = THEME_OPTIONS.find((t) => t.id === appConfig.theme_color) || THEME_OPTIONS[0];
 
-  // 승인된 질문 목록
-  const approvedQuestions = questions.filter((q) => q.is_selected || q.status === 'approved');
+  // 승인된 질문 목록 (보안 및 개인별 분리: 학생 로그인 시에는 본인의 승인 과제만, 비로그인 시 비공개)
+  const approvedQuestions = isTeacherMode || currentTeacher
+    ? questions.filter((q) => q.is_selected || q.status === 'approved')
+    : currentUser
+    ? questions.filter((q) => (q.is_selected || q.status === 'approved') && q.student_name === currentUser.studentName)
+    : [];
 
   // 현재 로그인한 학생의 질문 목록
   const myQuestions = currentUser
@@ -79,7 +83,7 @@ export default function Home() {
   };
 
   const handleStartExplore = (question) => {
-    if (!currentUser) {
+    if (!currentUser && !isTeacherMode && !currentTeacher) {
       showToast('탐구 일지를 작성하려면 먼저 학생 로그인이 필요합니다.', 'info');
       setIsLoginModalOpen(true);
       return;
@@ -88,6 +92,12 @@ export default function Home() {
     const isApproved = question.is_selected || question.status === 'approved';
     if (!isApproved) {
       showToast('선생님이 승인(채택)한 질문만 다음 단계(탐구 일지)로 진행할 수 있습니다!', 'info');
+      return;
+    }
+
+    // 학생 본인의 질문인지 확인 (교사 제외)
+    if (currentUser && question.student_name !== currentUser.studentName && !isTeacherMode && !currentTeacher) {
+      showToast('본인의 승인된 탐구 과제만 일지를 작성할 수 있습니다.', 'error');
       return;
     }
 
@@ -201,7 +211,13 @@ export default function Home() {
           }`}
         >
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span>승인된 과제 ({approvedQuestions.length})</span>
+          <span>
+            {isTeacherMode || currentTeacher
+              ? `승인된 과제 (${approvedQuestions.length})`
+              : currentUser
+              ? `승인된 나의 과제 (${approvedQuestions.length})`
+              : '승인된 과제 (로그인 필요)'}
+          </span>
         </button>
 
         <button
@@ -254,19 +270,40 @@ export default function Home() {
             <div className="animate-spin w-6 h-6 border-2 border-eureka-500 border-t-transparent rounded-full mx-auto mb-2"></div>
             데이터를 불러오는 중입니다...
           </div>
+        ) : tab === 'approved' && !currentUser && !isTeacherMode && !currentTeacher ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-4 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+              <Lock className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-black text-slate-800">
+                승인된 과제는 학생 본인에게만 공개됩니다
+              </h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                선생님이 승인한 나의 탐구 과제를 확인하고 4단계 탐구 일지를 시작하려면 먼저 학생 로그인을 해주세요.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="inline-flex items-center space-x-1.5 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black transition shadow-sm active:scale-95"
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>학생 로그인하기</span>
+            </button>
+          </div>
         ) : displayQuestions.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200 p-6 space-y-2">
             <MessageSquareQuote className="w-10 h-10 text-slate-300 mx-auto" />
             <p className="text-sm font-semibold text-slate-600">
               {tab === 'approved'
-                ? '아직 선생님이 승인한 탐구 질문이 없습니다.'
+                ? '아직 선생님이 승인한 나의 탐구 과제가 없습니다.'
                 : tab === 'my'
                 ? '아직 등록한 내 질문이 없습니다.'
                 : '등록된 질문이 없습니다.'}
             </p>
             <p className="text-xs text-slate-400">
               {tab === 'approved'
-                ? '선생님이 질문을 검토하고 승인하면 여기에 나타납니다.'
+                ? '새로운 호기심 질문을 등록하면 선생님이 검토 후 승인하여 여기에 표시됩니다.'
                 : '새로운 호기심 질문을 던져보세요!'}
             </p>
             <button
@@ -428,21 +465,35 @@ export default function Home() {
                     )}
 
                     {isApproved ? (
-                      <button
-                        onClick={() => handleStartExplore(q)}
-                        className="inline-flex items-center space-x-1 text-xs font-extrabold px-3.5 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-sm active:scale-95"
-                      >
-                        <Compass className="w-3.5 h-3.5" />
-                        <span>탐구 일지 쓰기</span>
-                      </button>
+                      isMyQuestion || isTeacherMode || currentTeacher ? (
+                        <button
+                          onClick={() => handleStartExplore(q)}
+                          className="inline-flex items-center space-x-1 text-xs font-extrabold px-3.5 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-sm active:scale-95"
+                        >
+                          <Compass className="w-3.5 h-3.5" />
+                          <span>탐구 일지 쓰기</span>
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>과제 승인 완료</span>
+                        </span>
+                      )
                     ) : (
-                      <button
-                        onClick={() => handleStartExplore(q)}
-                        className="inline-flex items-center space-x-1 text-xs font-medium px-3 py-1.5 rounded-xl bg-slate-100 text-slate-400 hover:bg-slate-200 transition"
-                      >
-                        <Lock className="w-3.5 h-3.5" />
-                        <span>{status === 'rejected' ? '가설 보완 필요' : '승인 대기 중'}</span>
-                      </button>
+                      isMyQuestion || isTeacherMode || currentTeacher ? (
+                        <button
+                          onClick={() => handleStartExplore(q)}
+                          className="inline-flex items-center space-x-1 text-xs font-medium px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>{status === 'rejected' ? '가설 보완 필요' : '승인 대기 중'}</span>
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center space-x-1 text-xs font-medium px-3 py-1.5 rounded-xl bg-slate-50 text-slate-400 border border-slate-200">
+                          <Lock className="w-3 h-3 text-slate-400" />
+                          <span>{status === 'rejected' ? '가설 보완' : '승인 대기'}</span>
+                        </span>
+                      )
                     )}
                   </div>
                 </div>

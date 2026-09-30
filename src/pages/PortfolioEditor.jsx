@@ -54,13 +54,19 @@ export default function PortfolioEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState('');
 
-  // 미로그인 시 로그인 유도 (교사 접속 시에는 유도하지 않음)
+  // 미로그인 시 로그인 유도 및 타 학생 과제 접근 차단
   useEffect(() => {
     if (!currentUser && !currentTeacher) {
       showToast('탐구 일지를 작성하려면 먼저 로그인이 필요합니다.', 'info');
       setIsLoginModalOpen(true);
+      return;
     }
-  }, [currentUser, currentTeacher]);
+
+    if (currentUser && targetQuestion && targetQuestion.student_name !== currentUser.studentName && !currentTeacher) {
+      showToast('본인의 승인된 탐구 과제만 일지를 작성할 수 있습니다.', 'error');
+      navigate('/');
+    }
+  }, [currentUser, currentTeacher, targetQuestion, navigate]);
 
   // 기존 저장 데이터 불러오기
   useEffect(() => {
