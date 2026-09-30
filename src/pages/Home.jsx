@@ -55,10 +55,17 @@ export default function Home() {
     ? questions.filter((q) => q.student_name === currentUser.studentName)
     : [];
 
+  // 전체 피드 질문 목록 (보안 및 개인별 분리: 학생 로그인 시에는 본인 질문만, 비로그인 시 비공개)
+  const feedQuestions = isTeacherMode || currentTeacher
+    ? questions
+    : currentUser
+    ? questions.filter((q) => q.student_name === currentUser.studentName)
+    : [];
+
   const getDisplayQuestions = () => {
     if (tab === 'approved') return approvedQuestions;
     if (tab === 'my') return myQuestions;
-    return questions;
+    return feedQuestions;
   };
 
   const displayQuestions = getDisplayQuestions();
@@ -239,14 +246,27 @@ export default function Home() {
         </button>
 
         <button
-          onClick={() => setTab('all')}
+          onClick={() => {
+            if (!currentUser && !isTeacherMode && !currentTeacher) {
+              showToast('전체 피드를 보려면 먼저 학생 로그인을 해주세요.', 'info');
+              setIsLoginModalOpen(true);
+              return;
+            }
+            setTab('all');
+          }}
           className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 ${
             tab === 'all'
               ? 'bg-white text-slate-800 shadow-sm'
               : 'text-slate-500 hover:text-slate-700'
           }`}
         >
-          <span>전체 피드 ({questions.length})</span>
+          <span>
+            {isTeacherMode || currentTeacher
+              ? `전체 피드 (${feedQuestions.length})`
+              : currentUser
+              ? `전체 피드 (${feedQuestions.length})`
+              : '전체 피드 (로그인 필요)'}
+          </span>
         </button>
       </div>
 
@@ -270,17 +290,19 @@ export default function Home() {
             <div className="animate-spin w-6 h-6 border-2 border-eureka-500 border-t-transparent rounded-full mx-auto mb-2"></div>
             데이터를 불러오는 중입니다...
           </div>
-        ) : tab === 'approved' && !currentUser && !isTeacherMode && !currentTeacher ? (
+        ) : (tab === 'approved' || tab === 'all') && !currentUser && !isTeacherMode && !currentTeacher ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-4 shadow-xs">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
               <Lock className="w-7 h-7" />
             </div>
             <div className="space-y-1">
               <h3 className="text-base font-black text-slate-800">
-                승인된 과제는 학생 본인에게만 공개됩니다
+                {tab === 'approved' ? '승인된 과제는 학생 본인에게만 공개됩니다' : '질문 피드는 학생 본인에게만 공개됩니다'}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                선생님이 승인한 나의 탐구 과제를 확인하고 4단계 탐구 일지를 시작하려면 먼저 학생 로그인을 해주세요.
+                {tab === 'approved'
+                  ? '선생님이 승인한 나의 탐구 과제를 확인하고 4단계 탐구 일지를 시작하려면 먼저 학생 로그인을 해주세요.'
+                  : '등록한 나의 호기심 질문 피드를 확인하려면 먼저 학생 로그인을 해주세요.'}
               </p>
             </div>
             <button
@@ -297,9 +319,7 @@ export default function Home() {
             <p className="text-sm font-semibold text-slate-600">
               {tab === 'approved'
                 ? '아직 선생님이 승인한 나의 탐구 과제가 없습니다.'
-                : tab === 'my'
-                ? '아직 등록한 내 질문이 없습니다.'
-                : '등록된 질문이 없습니다.'}
+                : '아직 등록한 내 질문이 없습니다.'}
             </p>
             <p className="text-xs text-slate-400">
               {tab === 'approved'
