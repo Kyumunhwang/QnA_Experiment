@@ -51,6 +51,11 @@ export default function TeacherRoster() {
   const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
   const [isPromoting, setIsPromoting] = useState(false);
 
+  // 학급 목록 (alumni 졸업생 포함)
+  const availableClasses = Array.from(
+    new Set([...classList, ...studentRoster.map((s) => s.grade_class)])
+  ).filter(Boolean);
+
   // 검색 및 학급 필터링
   const displayedStudents = studentRoster.filter((s) => {
     const matchClass = filterClass === 'ALL' || s.grade_class === filterClass;
@@ -271,9 +276,9 @@ export default function TeacherRoster() {
           className="px-2.5 py-1.5 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none shrink-0"
         >
           <option value="ALL">전체 학급</option>
-          {classList.map((cls) => (
+          {availableClasses.map((cls) => (
             <option key={cls} value={cls}>
-              {cls} 반
+              {cls === 'alumni' ? 'alumni (졸업생 보관)' : `${cls} 반`}
             </option>
           ))}
         </select>
@@ -346,8 +351,10 @@ export default function TeacherRoster() {
                 ) : (
                   /* 기본 정보 표시 */
                   <div className="flex items-center space-x-2.5">
-                    <span className="bg-slate-800 text-white font-black text-[10px] px-2 py-0.5 rounded-md">
-                      {s.grade_class}
+                    <span className={`text-white font-black text-[10px] px-2 py-0.5 rounded-md ${
+                      s.grade_class === 'alumni' ? 'bg-purple-700' : 'bg-slate-800'
+                    }`}>
+                      {s.grade_class === 'alumni' ? 'alumni (졸업생)' : s.grade_class}
                     </span>
                     <span className="text-xs font-bold text-slate-800">
                       {s.student_name}
@@ -430,9 +437,10 @@ export default function TeacherRoster() {
                 <div>• H9 ➔ <span className="font-bold text-indigo-600">H10</span></div>
                 <div>• H10 ➔ <span className="font-bold text-indigo-600">H11</span></div>
                 <div>• H11 ➔ <span className="font-bold text-indigo-600">H12</span></div>
+                <div className="col-span-2">• H12 ➔ <span className="font-bold text-purple-700">alumni (졸업생 보관)</span></div>
               </div>
-              <div className="pt-1.5 border-t border-slate-200 text-rose-600 font-bold text-[11px] flex items-center space-x-1">
-                <span>⚠️ H12 학생은 <strong>자동 졸업 처리(명렬표에서 삭제)</strong>됩니다.</span>
+              <div className="pt-1.5 border-t border-slate-200 text-purple-800 font-bold text-[11px] flex items-start space-x-1 leading-relaxed">
+                <span>🎓 <strong>H12 학생은 삭제되지 않고 'alumni'(졸업생) 클래스로 안전하게 영구 보관</strong>됩니다. 일반 학생 로그인 및 화면에서는 보이지 않으며, 교사 화면에서만 언제든지 이전 자료를 조회할 수 있습니다.</span>
               </div>
               <div className="text-slate-500 text-[11px]">
                 💡 신규 M6 학생은 진급 완료 후 <strong>[신규 학생 등록]</strong> 버튼으로 직접 등록해 주시면 됩니다.

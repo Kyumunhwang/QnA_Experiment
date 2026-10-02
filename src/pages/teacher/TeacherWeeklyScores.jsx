@@ -67,6 +67,11 @@ export default function TeacherWeeklyScores() {
   const windowWeeks = appConfig?.score_display_weeks || 2;
   const isSelectedWeekEditable = isWeekWithinWindow(selectedWeek, windowWeeks);
 
+  // 학급 목록 (alumni 졸업생 포함)
+  const availableClasses = Array.from(
+    new Set([...classList, ...studentRoster.map((s) => s.grade_class)])
+  ).filter(Boolean);
+
   // 주차 요약 데이터 계산 (수동 점수 및 공개 기간 연동)
   const classSummary = getClassWeeklySummary({
     students: studentRoster,
@@ -257,9 +262,9 @@ export default function TeacherWeeklyScores() {
               className="px-3 py-1.5 text-xs font-black bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-eureka-500 shadow-2xs"
             >
               <option value="ALL">전체 학급 통합 ({studentRoster.length}명)</option>
-              {classList.map((cls) => (
+              {availableClasses.map((cls) => (
                 <option key={cls} value={cls}>
-                  {cls} 반
+                  {cls === 'alumni' ? 'alumni (졸업생 보관)' : `${cls} 반`}
                 </option>
               ))}
             </select>

@@ -485,7 +485,7 @@ export async function deleteStudent(gradeClass, studentName) {
   return { success: true, message: `${studentName} 학생이 삭제되었습니다.` };
 }
 
-/** 1년 주기 학년 일괄 진급 (M6->M7, M7->M8, M8->H9, H9->H10, H10->H11, H11->H12, H12는 졸업 삭제) */
+/** 1년 주기 학년 일괄 진급 (M6->M7, M7->M8, M8->H9, H9->H10, H10->H11, H11->H12, H12는 alumni 졸업생 클래스 보관) */
 export async function promoteStudents() {
   const GRADE_MAP = {
     'M6': 'M7',
@@ -493,7 +493,8 @@ export async function promoteStudents() {
     'M8': 'H9',
     'H9': 'H10',
     'H10': 'H11',
-    'H11': 'H12'
+    'H11': 'H12',
+    'H12': 'alumni'
   };
 
   const apiUrl = getGasApiUrl();
@@ -527,8 +528,18 @@ export async function promoteStudents() {
   const updatedList = [];
   for (const s of list) {
     const curClass = String(s.grade_class || '').trim();
+    if (curClass === 'alumni') {
+      // 이미 졸업생인 학생은 그대로 alumni 유지
+      updatedList.push(s);
+      continue;
+    }
     if (curClass === 'H12') {
       graduatedCount++;
+      updatedList.push({
+        ...s,
+        grade_class: 'alumni',
+        updated_at: new Date().toISOString(),
+      });
       continue;
     }
     const nextClass = GRADE_MAP[curClass] || curClass;
@@ -546,7 +557,7 @@ export async function promoteStudents() {
 
   return {
     success: true,
-    message: `총 ${promotedCount}명 진급 완료, ${graduatedCount}명(H12) 졸업 처리되었습니다. (로컬 반영)`,
+    message: `총 ${promotedCount}명 진급 완료, ${graduatedCount}명(H12)이 졸업생(alumni) 클래스로 안전하게 보관되었습니다.`,
     promotedCount,
     graduatedCount,
   };
@@ -667,20 +678,33 @@ export async function savePortfolio(portfolioData) {
     );
   }
 
+  const existing = existingIndex >= 0 ? list[existingIndex] : {};
+
   const savedRecord = {
-    id: existingIndex >= 0 ? list[existingIndex].id : (targetId || ('PF-' + Date.now())),
-    question_id: portfolioData.question_id || '',
-    student_name: portfolioData.student_name || '',
-    grade_class: portfolioData.grade_class || '',
-    step1_research: portfolioData.step1_research || '',
-    step2_experiment: portfolioData.step2_experiment || '',
-    step3_failure_lesson: portfolioData.step3_failure_lesson || '',
-    step3_revised_hypothesis: portfolioData.step3_revised_hypothesis || '',
-    step4_conclusion: portfolioData.step4_conclusion || '',
+    id: existing.id || (targetId || ('PF-' + Date.now())),
+    question_id: portfolioData.question_id || existing.question_id || '',
+    student_name: portfolioData.student_name || existing.student_name || '',
+    grade_class: portfolioData.grade_class || existing.grade_class || '',
+    step1_research: portfolioData.step1_research !== undefined ? portfolioData.step1_research : (existing.step1_research || ''),
+    step2_experiment: portfolioData.step2_experiment !== undefined ? portfolioData.step2_experiment : (existing.step2_experiment || ''),
+    step3_failure_lesson: portfolioData.step3_failure_lesson !== undefined ? portfolioData.step3_failure_lesson : (existing.step3_failure_lesson || ''),
+    step3_revised_hypothesis: portfolioData.step3_revised_hypothesis !== undefined ? portfolioData.step3_revised_hypothesis : (existing.step3_revised_hypothesis || ''),
+    step4_conclusion: portfolioData.step4_conclusion !== undefined ? portfolioData.step4_conclusion : (existing.step4_conclusion || ''),
+    
+    // 단계별 교사 승인 및 피드백 상태
+    step1_status: portfolioData.step1_status !== undefined ? portfolioData.step1_status : (existing.step1_status || 'writing'),
+    step1_feedback: portfolioData.step1_feedback !== undefined ? portfolioData.step1_feedback : (existing.step1_feedback || ''),
+    step2_status: portfolioData.step2_status !== undefined ? portfolioData.step2_status : (existing.step2_status || 'writing'),
+    step2_feedback: portfolioData.step2_feedback !== undefined ? portfolioData.step2_feedback : (existing.step2_feedback || ''),
+    step3_status: portfolioData.step3_status !== undefined ? portfolioData.step3_status : (existing.step3_status || 'writing'),
+    step3_feedback: portfolioData.step3_feedback !== undefined ? portfolioData.step3_feedback : (existing.step3_feedback || ''),
+    step4_status: portfolioData.step4_status !== undefined ? portfolioData.step4_status : (existing.step4_status || 'writing'),
+    step4_feedback: portfolioData.step4_feedback !== undefined ? portfolioData.step4_feedback : (existing.step4_feedback || ''),
+
     last_updated: now,
-    is_reviewed: existingIndex >= 0 ? list[existingIndex].is_reviewed : false,
-    teacher_comment: existingIndex >= 0 ? list[existingIndex].teacher_comment : '',
-    reviewed_by: existingIndex >= 0 ? (list[existingIndex].reviewed_by || '황규문') : '황규문',
+    is_reviewed: existing.is_reviewed !== undefined ? existing.is_reviewed : false,
+    teacher_comment: existing.teacher_comment || '',
+    reviewed_by: existing.reviewed_by || '황규문',
   };
 
   if (existingIndex >= 0) list[existingIndex] = savedRecord;
@@ -698,6 +722,36 @@ export async function savePortfolio(portfolioData) {
     } catch (err) {}
   }
   return savedRecord;
+}
+
+/** 탐구 일지 각 단계별 교사 승인 또는 보류 처리 */
+export async function savePortfolioStepApproval(portfolioId, stepNum, status, feedback = '') {
+  const list = getLocal(STORAGE_KEY_PORTFOLIOS, []);
+  const target = list.find(p => p.id === portfolioId);
+  if (target) {
+    target[`step${stepNum}_status`] = status; // 'approved' | 'held' | 'submitted' | 'writing'
+    target[`step${stepNum}_feedback`] = feedback;
+    target.last_updated = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    setLocal(STORAGE_KEY_PORTFOLIOS, [...list]);
+  }
+
+  const apiUrl = getGasApiUrl();
+  if (apiUrl) {
+    try {
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'savePortfolioStepApproval',
+          id: portfolioId,
+          step_num: stepNum,
+          status,
+          feedback,
+        }),
+      });
+    } catch (err) {}
+  }
+  return target;
 }
 
 /** 교사 확인 도장 및 코멘트 부여 (기본 담당 교사: 황규문) */

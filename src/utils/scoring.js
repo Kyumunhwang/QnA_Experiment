@@ -190,7 +190,25 @@ export function calculateStudentWeeklyScore({
     return false;
   }) || (isApproved ? portfolios.find((p) => p.student_name === studentName) : null);
 
-  // 포트폴리오 단계 확인
+  // 포트폴리오 단계 및 교사 단계별 승인 여부 확인
+  // 1단계 승인: step1_status === 'approved' (레거시: step2_experiment 존재 시 자동 승인 간주)
+  const isStep1Approved = Boolean(
+    studentPf?.step1_status === 'approved' ||
+    (!studentPf?.step1_status && studentPf?.step2_experiment && String(studentPf.step2_experiment).trim().length > 0)
+  );
+
+  // 2단계 승인: step2_status === 'approved' (레거시: step3_failure_lesson 존재 시 자동 승인 간주)
+  const isStep2Approved = Boolean(
+    studentPf?.step2_status === 'approved' ||
+    (!studentPf?.step2_status && studentPf?.step3_failure_lesson && String(studentPf.step3_failure_lesson).trim().length > 0)
+  );
+
+  // 3단계 승인: step3_status === 'approved' (레거시: step4_conclusion 존재 시 자동 승인 간주)
+  const isStep3Approved = Boolean(
+    studentPf?.step3_status === 'approved' ||
+    (!studentPf?.step3_status && studentPf?.step4_conclusion && String(studentPf.step4_conclusion).trim().length > 0)
+  );
+
   const hasStep2 = Boolean(studentPf?.step2_experiment && String(studentPf.step2_experiment).trim().length > 0);
   const hasStep3 = Boolean(studentPf?.step3_failure_lesson && String(studentPf.step3_failure_lesson).trim().length > 0);
   const hasStep4 = Boolean(studentPf?.step4_conclusion && String(studentPf.step4_conclusion).trim().length > 0);
@@ -203,9 +221,9 @@ export function calculateStudentWeeklyScore({
     baseQuestions: 0,
     bonusQuestions: 0,
     approvalBase: 0,
+    step1Bonus: 0,
     step2Bonus: 0,
     step3Bonus: 0,
-    step4Bonus: 0,
     finalStampBonus: 0,
   };
   let message = '';
@@ -250,25 +268,29 @@ export function calculateStudentWeeklyScore({
       message = `선생님의 보완 피드백(반려)이 완료되어 ${systemScore}점이 부여되었습니다. 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요!`;
     }
   } else {
-    // [90점 ~ 100점] 선생님의 승인 완료
+    // [90점 ~ 100점] 선생님의 질문 승인 완료 (기본 90점)
     breakdown.approvalBase = 90;
     systemScore = 90;
 
-    if (hasStep2) {
-      systemScore += 3; // 93
+    // 1단계(사전조사) 교사 승인 완료 시: +3점 (93점)
+    if (isStep1Approved) {
+      systemScore += 3;
+      breakdown.step1Bonus = 3;
+    }
+    // 2단계(실험설계) 교사 승인 완료 시: +3점 (96점)
+    if (isStep2Approved) {
+      systemScore += 3;
       breakdown.step2Bonus = 3;
     }
-    if (hasStep3) {
-      systemScore += 3; // 96
+    // 3단계(실패분석) 교사 승인 완료 시: +3점 (99점)
+    if (isStep3Approved) {
+      systemScore += 3;
       breakdown.step3Bonus = 3;
     }
-    if (hasStep4) {
-      systemScore += 3; // 99
-      breakdown.step4Bonus = 3;
-    }
 
+    // 4단계 최종 확인 도장 승인 시: +1점 추가로 100점 만점 달성
     if (isReviewed) {
-      systemScore = 100; // 최종 확인 도장 승인 시 +1점 추가로 100점
+      systemScore = 100;
       breakdown.finalStampBonus = 1;
       status = 'PERFECT';
       lightType = 'perfect';
@@ -276,14 +298,14 @@ export function calculateStudentWeeklyScore({
     } else {
       status = 'CHALLENGE';
       lightType = 'challenge';
-      if (hasStep4) {
-        message = '결론까지 모두 작성되었습니다! 선생님의 최종 확인 도장을 받으면 100점 만점이 됩니다.';
-      } else if (hasStep3) {
-        message = '실패 분석 완료! 마지막 Step 4 결론 도출까지 계속 도전해 보세요 (96점 달성).';
-      } else if (hasStep2) {
-        message = '실험 진행 중! 실패와 배운 점을 분석하는 Step 3으로 나아가 보세요 (93점 달성).';
+      if (isStep3Approved) {
+        message = '실패 분석 승인 완료! 최종 4단계 결론을 작성하고 선생님의 최종 확인 도장(100점)에 도전하세요!';
+      } else if (isStep2Approved) {
+        message = '실험 설계 승인 완료! 실패와 배운 점을 분석하는 3단계 승인에 도전해 보세요 (96점 달성).';
+      } else if (isStep1Approved) {
+        message = '사전 조사 1단계 승인 완료! 실험을 설계하고 2단계 승인에 도전해 보세요 (93점 달성).';
       } else {
-        message = '선생님의 질문 승인 완료! 실험을 시작하고 탐구 일지를 작성해 보세요 (90점 달성).';
+        message = '선생님의 질문 승인 완료! 1단계 사전 조사를 작성하고 교사 승인에 도전해 보세요 (90점 달성).';
       }
     }
   }
@@ -333,6 +355,9 @@ export function calculateStudentWeeklyScore({
     rejectedCount,
     pendingCount,
     isApproved,
+    isStep1Approved,
+    isStep2Approved,
+    isStep3Approved,
     hasStep2,
     hasStep3,
     hasStep4,

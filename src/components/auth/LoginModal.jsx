@@ -13,15 +13,18 @@ export default function LoginModal() {
     showToast,
   } = useApp();
 
-  const [selectedClass, setSelectedClass] = useState(classList[0] || 'M6');
+  // 일반 학생 로그인용 학급 목록 (alumni 졸업생 제외)
+  const studentClasses = classList.filter((c) => c !== 'alumni');
+
+  const [selectedClass, setSelectedClass] = useState(studentClasses[0] || 'M6');
   const [selectedStudent, setSelectedStudent] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 선택된 반에 속한 학생들 목록 필터
+  // 선택된 반에 속한 학생들 목록 필터 (alumni 제외)
   const classStudents = studentRoster.filter(
-    (s) => s.grade_class === selectedClass
+    (s) => s.grade_class === selectedClass && s.grade_class !== 'alumni'
   );
 
   // 반 변경 시 첫 번째 학생 자동 선택
@@ -97,7 +100,7 @@ export default function LoginModal() {
               onChange={(e) => setSelectedClass(e.target.value)}
               className="w-full px-3.5 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-eureka-500"
             >
-              {classList.map((cls) => (
+              {studentClasses.map((cls) => (
                 <option key={cls} value={cls}>
                   {cls} 반
                 </option>

@@ -18,7 +18,13 @@ import {
   HelpCircle,
   Lightbulb,
   Sparkles,
-  Quote
+  Quote,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Send,
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 
 export default function PortfolioEditor() {
@@ -33,7 +39,8 @@ export default function PortfolioEditor() {
     currentTeacher,
     setIsLoginModalOpen,
     showToast,
-    refreshPortfolios
+    refreshPortfolios,
+    approvePortfolioStepAction,
   } = useApp();
 
   const targetQuestion = questions.find((q) => String(q.id) === String(questionId));
@@ -50,6 +57,22 @@ export default function PortfolioEditor() {
   const [step3FailureLesson, setStep3FailureLesson] = useState('');
   const [step3RevisedHypothesis, setStep3RevisedHypothesis] = useState('');
   const [step4Conclusion, setStep4Conclusion] = useState('');
+
+  // 단계별 교사 승인/보류 상태 ('writing' | 'submitted' | 'approved' | 'held')
+  const [step1Status, setStep1Status] = useState('writing');
+  const [step1Feedback, setStep1Feedback] = useState('');
+  const [step2Status, setStep2Status] = useState('writing');
+  const [step2Feedback, setStep2Feedback] = useState('');
+  const [step3Status, setStep3Status] = useState('writing');
+  const [step3Feedback, setStep3Feedback] = useState('');
+  const [step4Status, setStep4Status] = useState('writing');
+  const [step4Feedback, setStep4Feedback] = useState('');
+  const [isReviewed, setIsReviewed] = useState(false);
+  const [teacherComment, setTeacherComment] = useState('');
+
+  // 교사용 즉시 심사 인풋 상태
+  const [teacherReviewFeedback, setTeacherReviewFeedback] = useState('');
+  const [isReviewingByTeacher, setIsReviewingByTeacher] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState('');
@@ -87,6 +110,23 @@ export default function PortfolioEditor() {
           setStep3RevisedHypothesis(existing.step3_revised_hypothesis || '');
           setStep4Conclusion(existing.step4_conclusion || '');
           setLastSavedTime(existing.last_updated || '');
+
+          // 단계별 승인 상태 동기화 (기존 데이터 호환 처리)
+          const s1 = existing.step1_status || (existing.step2_experiment ? 'approved' : 'writing');
+          const s2 = existing.step2_status || (existing.step3_failure_lesson ? 'approved' : 'writing');
+          const s3 = existing.step3_status || (existing.step4_conclusion ? 'approved' : 'writing');
+          const s4 = existing.step4_status || (existing.is_reviewed ? 'approved' : 'writing');
+
+          setStep1Status(s1);
+          setStep1Feedback(existing.step1_feedback || '');
+          setStep2Status(s2);
+          setStep2Feedback(existing.step2_feedback || '');
+          setStep3Status(s3);
+          setStep3Feedback(existing.step3_feedback || '');
+          setStep4Status(s4);
+          setStep4Feedback(existing.step4_feedback || '');
+          setIsReviewed(Boolean(existing.is_reviewed));
+          setTeacherComment(existing.teacher_comment || '');
         }
       } catch (err) {
         console.error('포트폴리오 로드 실패:', err);
@@ -118,8 +158,26 @@ export default function PortfolioEditor() {
     );
   }
 
-  const handleSave = async (silent = false) => {
-    if (!currentUser) {
+  // 현재 스텝의 상태 및 피드백 헬퍼
+  const getStepStatus = (stepNum) => {
+    if (stepNum === 1) return { status: step1Status, feedback: step1Feedback };
+    if (stepNum === 2) return { status: step2Status, feedback: step2Feedback };
+    if (stepNum === 3) return { status: step3Status, feedback: step3Feedback };
+    return { status: step4Status, feedback: step4Feedback };
+  };
+
+  // 특정 단계 접근 가능 여부 (선행 단계가 승인되었거나 교사인 경우)
+  const isStepUnlocked = (stepNum) => {
+    if (currentTeacher) return true;
+    if (stepNum === 1) return true;
+    if (stepNum === 2) return step1Status === 'approved';
+    if (stepNum === 3) return step1Status === 'approved' && step2Status === 'approved';
+    if (stepNum === 4) return step1Status === 'approved' && step2Status === 'approved' && step3Status === 'approved';
+    return false;
+  };
+
+  const handleSave = async (silent = false, extraUpdates = {}) => {
+    if (!currentUser && !currentTeacher) {
       if (!silent) showToast('로그인이 필요합니다.', 'error');
       setIsLoginModalOpen(true);
       return null;
@@ -127,21 +185,35 @@ export default function PortfolioEditor() {
 
     setIsSaving(true);
     try {
-      const saved = await savePortfolio({
+      const studentName = currentUser?.studentName || targetQuestion?.student_name;
+      const gradeClass = currentUser?.gradeClass || targetQuestion?.grade_class;
+
+      const payload = {
         id: portfolioId,
         question_id: questionId || targetQuestion?.id || '',
-        student_name: currentUser.studentName,
-        grade_class: currentUser.gradeClass,
+        student_name: studentName,
+        grade_class: gradeClass,
         step1_research: step1Research,
         step2_experiment: step2Experiment,
         step3_failure_lesson: step3FailureLesson,
         step3_revised_hypothesis: step3RevisedHypothesis,
         step4_conclusion: step4Conclusion,
-      });
+        step1_status: step1Status,
+        step1_feedback: step1Feedback,
+        step2_status: step2Status,
+        step2_feedback: step2Feedback,
+        step3_status: step3Status,
+        step3_feedback: step3Feedback,
+        step4_status: step4Status,
+        step4_feedback: step4Feedback,
+        ...extraUpdates,
+      };
+
+      const saved = await savePortfolio(payload);
 
       if (saved?.id) setPortfolioId(saved.id);
       setLastSavedTime(new Date().toLocaleTimeString());
-      await refreshPortfolios(currentUser.studentName);
+      await refreshPortfolios(studentName);
 
       if (!silent) {
         showToast('탐구 일지가 안전하게 임시 저장되었습니다!', 'success');
@@ -156,13 +228,85 @@ export default function PortfolioEditor() {
     }
   };
 
+  // 단계 진행 또는 제출 버튼 클릭 핸들러
   const handleNextStep = async () => {
-    await handleSave(true);
-    if (currentStep < 4) {
-      setCurrentStep((prev) => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
+    const { status: curStatus } = getStepStatus(currentStep);
+
+    // 4단계에서는 결과 보고서 화면으로 이동
+    if (currentStep === 4) {
+      await handleSave(true);
       navigate(`/report/${portfolioId || ('PF-' + Date.now())}?questionId=${questionId}`);
+      return;
+    }
+
+    // 이미 교사의 승인을 받은 경우: 즉시 다음 단계로 이동 가능
+    if (curStatus === 'approved' || currentTeacher) {
+      await handleSave(true);
+      const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // 아직 승인을 받지 못한 경우:
+    // 필수 작성 여부 검증 후 상태를 'submitted'(검토 대기)로 변경하여 저장
+    let currentContentLength = 0;
+    if (currentStep === 1) currentContentLength = step1Research.trim().length;
+    if (currentStep === 2) currentContentLength = step2Experiment.trim().length;
+    if (currentStep === 3) currentContentLength = (step3FailureLesson.trim() + step3RevisedHypothesis.trim()).length;
+
+    if (currentContentLength < 10) {
+      showToast(`${currentStep}단계 내용을 충분히 작성한 후 교사 승인을 요청해 주세요.`, 'error');
+      return;
+    }
+
+    // 상태를 'submitted'로 갱신하여 저장
+    const updates = {};
+    if (currentStep === 1) {
+      updates.step1_status = 'submitted';
+      setStep1Status('submitted');
+    } else if (currentStep === 2) {
+      updates.step2_status = 'submitted';
+      setStep2Status('submitted');
+    } else if (currentStep === 3) {
+      updates.step3_status = 'submitted';
+      setStep3Status('submitted');
+    }
+
+    await handleSave(true, updates);
+    showToast(
+      `✓ ${currentStep}단계 내용이 저장되었으며 선생님께 승인 요청되었습니다!\n선생님의 피드백 및 승인 후 다음 단계로 진행할 수 있습니다.`,
+      'info'
+    );
+  };
+
+  // 교사 직접 검토 승인 / 보류 액션 (교사 로그인 시 활용)
+  const handleTeacherStepReview = async (status) => {
+    if (!portfolioId) {
+      showToast('먼저 학생의 일지를 한 번 이상 저장해야 합니다.', 'error');
+      return;
+    }
+    setIsReviewingByTeacher(true);
+    try {
+      const feedback = teacherReviewFeedback.trim();
+      await approvePortfolioStepAction(portfolioId, currentStep, status, feedback);
+
+      if (currentStep === 1) {
+        setStep1Status(status);
+        setStep1Feedback(feedback);
+      } else if (currentStep === 2) {
+        setStep2Status(status);
+        setStep2Feedback(feedback);
+      } else if (currentStep === 3) {
+        setStep3Status(status);
+        setStep3Feedback(feedback);
+      } else if (currentStep === 4) {
+        setStep4Status(status);
+        setStep4Feedback(feedback);
+      }
+      setTeacherReviewFeedback('');
+    } finally {
+      setIsReviewingByTeacher(false);
     }
   };
 
@@ -246,31 +390,184 @@ export default function PortfolioEditor() {
         )}
       </div>
 
-      {/* 4단계 스텝 인디케이터 */}
+      {/* 4단계 스텝 인디케이터 (잠금 및 승인 배지 포함) */}
       <div className="grid grid-cols-4 gap-1.5 bg-slate-200/80 p-1.5 rounded-2xl">
         {steps.map((s) => {
           const Icon = s.icon;
           const isActive = currentStep === s.num;
+          const isUnlocked = isStepUnlocked(s.num);
+          const { status: sStatus } = getStepStatus(s.num);
+
           return (
             <button
               key={s.num}
               type="button"
-              onClick={() => setCurrentStep(s.num)}
-              className={`py-2 px-1 rounded-xl text-center transition flex flex-col items-center justify-center space-y-0.5 ${
+              onClick={() => {
+                if (!isUnlocked) {
+                  showToast(`선생님의 ${s.num - 1}단계 승인이 완료되어야 ${s.num}단계로 진행할 수 있습니다.`, 'error');
+                  return;
+                }
+                setCurrentStep(s.num);
+              }}
+              className={`py-2 px-1 rounded-xl text-center transition flex flex-col items-center justify-center space-y-0.5 relative ${
                 isActive
-                  ? 'bg-white shadow-sm font-bold text-slate-800'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white shadow-sm font-bold text-slate-800 ring-2 ring-eureka-500'
+                  : isUnlocked
+                  ? 'text-slate-600 hover:text-slate-900 bg-white/50'
+                  : 'text-slate-400 bg-slate-100/60 cursor-not-allowed opacity-70'
               }`}
             >
               <div className="flex items-center space-x-1">
-                <Icon className={`w-3.5 h-3.5 ${isActive ? s.color : 'text-slate-400'}`} />
+                {!isUnlocked ? (
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                ) : (
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? s.color : 'text-slate-500'}`} />
+                )}
                 <span className="text-[11px] font-bold">{s.num}단계</span>
               </div>
+
               <span className="text-[10px] truncate max-w-full">{s.title}</span>
+
+              {/* 상태 미니 뱃지 */}
+              {sStatus === 'approved' ? (
+                <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded-full leading-none flex items-center space-x-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5" />
+                  <span>승인(+3)</span>
+                </span>
+              ) : sStatus === 'held' ? (
+                <span className="text-[9px] font-black text-rose-700 bg-rose-100 px-1 py-0.2 rounded-full leading-none flex items-center space-x-0.5">
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  <span>보류</span>
+                </span>
+              ) : sStatus === 'submitted' ? (
+                <span className="text-[9px] font-black text-blue-700 bg-blue-100 px-1 py-0.2 rounded-full leading-none flex items-center space-x-0.5">
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>심사중</span>
+                </span>
+              ) : null}
             </button>
           );
         })}
       </div>
+
+      {/* 현재 단계별 교사 승인/보류 상태 안내 배너 */}
+      {(() => {
+        const { status: curStatus, feedback: curFeedback } = getStepStatus(currentStep);
+
+        if (curStatus === 'approved') {
+          return (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start space-x-2.5 animate-fadeIn">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 flex-1 text-xs">
+                <div className="font-black text-emerald-800 flex items-center space-x-1.5">
+                  <span>선생님 {currentStep}단계 승인 완료! (+3점 달성)</span>
+                  <span className="bg-emerald-200 text-emerald-900 text-[10px] px-1.5 py-0.2 rounded-md font-bold">
+                    다음 단계 진행 가능
+                  </span>
+                </div>
+                {curFeedback && (
+                  <p className="text-emerald-700 text-[11px] bg-white/70 p-2 rounded-xl mt-1 border border-emerald-100">
+                    <strong>선생님 코멘트:</strong> "{curFeedback}"
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (curStatus === 'held') {
+          return (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start space-x-2.5 animate-fadeIn">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1 flex-1 text-xs">
+                <div className="font-black text-rose-800 flex items-center space-x-1.5">
+                  <span>선생님이 {currentStep}단계를 [보류] 처리하였습니다.</span>
+                  <span className="bg-rose-200 text-rose-900 text-[10px] px-1.5 py-0.2 rounded-md font-bold">
+                    수정 후 재요청 필요
+                  </span>
+                </div>
+                <p className="text-slate-700 text-[11px] leading-relaxed">
+                  선생님의 피드백을 반영하여 내용을 수정한 후, 하단의 <strong>[교사 승인 후 다음 단계]</strong> 버튼을 눌러 다시 승인을 요청하세요.
+                </p>
+                {curFeedback && (
+                  <div className="p-2 bg-white rounded-xl border border-rose-200 text-rose-900 text-[11px] font-medium">
+                    <strong className="text-rose-700 block mb-0.5">💬 선생님 피드백:</strong>
+                    "{curFeedback}"
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (curStatus === 'submitted') {
+          return (
+            <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-start space-x-2.5 animate-fadeIn">
+              <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5 animate-pulse" />
+              <div className="space-y-0.5 flex-1 text-xs">
+                <div className="font-black text-blue-800">
+                  선생님께 {currentStep}단계 승인을 요청했습니다 (검토 대기 중)
+                </div>
+                <p className="text-slate-600 text-[11px]">
+                  선생님이 내용을 검토하고 승인하면 다음 단계가 자동으로 열리며 +3점이 부여됩니다. 기다리는 동안 내용을 계속 다듬을 수도 있습니다.
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center space-x-2 text-xs text-slate-600">
+            <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              {currentStep}단계 내용을 작성한 후 하단의 <strong>[교사 승인 후 다음 단계]</strong> 버튼을 누르면 선생님께 검토가 요청됩니다.
+            </span>
+          </div>
+        );
+      })()}
+
+      {/* 교사 직접 검토 승인 / 보류 심사 툴바 (교사 로그인 시 표시) */}
+      {currentTeacher && (
+        <div className="p-3.5 bg-indigo-50/90 border border-indigo-200 rounded-2xl space-y-2 text-xs animate-fadeIn shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-black text-indigo-900 flex items-center space-x-1.5">
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
+              <span>교사용 빠른 심사 도구 (현재 {currentStep}단계 심사)</span>
+            </span>
+            <span className="text-[10px] text-indigo-600 font-bold bg-white px-2 py-0.5 rounded-full border border-indigo-200">
+              담당: {currentTeacher.teacher_name}
+            </span>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={teacherReviewFeedback}
+              onChange={(e) => setTeacherReviewFeedback(e.target.value)}
+              placeholder={`학생에게 전달할 ${currentStep}단계 피드백이나 보완 사항을 입력하세요...`}
+              className="flex-1 px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <button
+              type="button"
+              onClick={() => handleTeacherStepReview('approved')}
+              disabled={isReviewingByTeacher}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center space-x-1 shrink-0 transition"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>승인 (+3점)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTeacherStepReview('held')}
+              disabled={isReviewingByTeacher}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold flex items-center space-x-1 shrink-0 transition"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>보류</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 선생님의 친절 가이드 아코디언 */}
       <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/70 rounded-2xl p-3.5 space-y-2">
@@ -499,14 +796,24 @@ export default function PortfolioEditor() {
               className={`px-4 py-2.5 rounded-xl text-white text-xs font-extrabold transition shadow-md flex items-center space-x-1.5 active:scale-95 ${
                 currentStep === 4
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+                  : getStepStatus(currentStep).status === 'approved'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
                   : 'bg-eureka-600 hover:bg-eureka-700'
               }`}
             >
-              <span>{currentStep === 4 ? '결과 보고서 확인하기' : '저장 후 다음 단계'}</span>
+              <span>
+                {currentStep === 4
+                  ? '결과 보고서 확인하기'
+                  : getStepStatus(currentStep).status === 'approved'
+                  ? '다음 단계로 이동 (승인 완료)'
+                  : '교사 승인 후 다음 단계'}
+              </span>
               {currentStep === 4 ? (
                 <FileText className="w-3.5 h-3.5" />
-              ) : (
+              ) : getStepStatus(currentStep).status === 'approved' ? (
                 <ArrowRight className="w-3.5 h-3.5" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
               )}
             </button>
           </div>

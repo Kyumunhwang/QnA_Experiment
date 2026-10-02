@@ -11,6 +11,7 @@ import {
   getQuestions,
   updateQuestionStatus,
   getPortfolios,
+  savePortfolioStepApproval,
   reviewPortfolio,
   getAppConfig,
   saveAppConfig,
@@ -320,6 +321,19 @@ export function AppProvider({ children }) {
     }
   };
 
+  const approvePortfolioStepAction = async (portfolioId, stepNum, status, feedback) => {
+    try {
+      await savePortfolioStepApproval(portfolioId, stepNum, status, feedback);
+      await refreshPortfolios();
+      const statusLabel = status === 'approved' ? '승인' : status === 'held' ? '보류' : '상태 갱신';
+      showToast(`${stepNum}단계 탐구 일지가 '${statusLabel}' 처리되었습니다.`, status === 'approved' ? 'success' : 'info');
+      return { success: true };
+    } catch (e) {
+      showToast('단계 승인/보류 처리 오류', 'error');
+      return { success: false };
+    }
+  };
+
   const refreshTeachers = async () => {
     try {
       const list = await getTeachers();
@@ -500,6 +514,7 @@ export function AppProvider({ children }) {
         deleteManualScoreAction,
         updateQuestionStatusAndFeedback,
         reviewPortfolioAction,
+        approvePortfolioStepAction,
         refreshStudents,
         isTeacherMode,
         toggleTeacherMode,
