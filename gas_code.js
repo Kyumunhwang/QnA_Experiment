@@ -59,13 +59,15 @@ function initialSetup() {
   qSheet.getRange(1, 1, 1, qHeaders.length).setValues([qHeaders]);
   qSheet.getRange(1, 1, 1, qHeaders.length).setFontWeight('bold').setBackground('#E8F0FE');
   
-  // 4. Portfolios 시트 (reviewed_by 추가)
+  // 4. Portfolios 시트 (reviewed_by 및 단계별 승인/피드백 열 추가)
   let pSheet = ss.getSheetByName(SHEET_PORTFOLIOS);
   if (!pSheet) pSheet = ss.insertSheet(SHEET_PORTFOLIOS);
   const pHeaders = [
     'id', 'question_id', 'student_name', 'step1_research', 'step2_experiment', 
     'step3_failure_lesson', 'step3_revised_hypothesis', 'step4_conclusion', 
-    'last_updated', 'grade_class', 'is_reviewed', 'teacher_comment', 'reviewed_by'
+    'last_updated', 'grade_class', 'is_reviewed', 'teacher_comment', 'reviewed_by',
+    'step1_status', 'step1_feedback', 'step2_status', 'step2_feedback',
+    'step3_status', 'step3_feedback', 'step4_status', 'step4_feedback'
   ];
   pSheet.getRange(1, 1, 1, pHeaders.length).setValues([pHeaders]);
   pSheet.getRange(1, 1, 1, pHeaders.length).setFontWeight('bold').setBackground('#E6F4EA');
@@ -472,6 +474,18 @@ function doPost(e) {
     // 13. 포트폴리오 저장
     if (action === 'savePortfolio') {
       const sheet = ss.getSheetByName(SHEET_PORTFOLIOS);
+      let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const stepCols = [
+        'step1_status', 'step1_feedback', 'step2_status', 'step2_feedback',
+        'step3_status', 'step3_feedback', 'step4_status', 'step4_feedback'
+      ];
+      stepCols.forEach(col => {
+        if (!headers.includes(col)) {
+          sheet.getRange(1, sheet.getLastColumn() + 1).setValue(col);
+          headers.push(col);
+        }
+      });
+
       const rows = sheet.getDataRange().getValues();
       const questionId = String(body.question_id || '');
       const studentName = String(body.student_name || '');
@@ -480,39 +494,91 @@ function doPost(e) {
       
       let targetRowIndex = -1;
       let existingId = body.id || '';
-      let isReviewed = false;
-      let teacherComment = '';
-      let reviewedBy = '황규문';
+      let existingRow = {};
       
       for (let i = 1; i < rows.length; i++) {
         if ((existingId && String(rows[i][0]) === existingId) || (questionId && String(rows[i][1]) === questionId && String(rows[i][2]) === studentName)) {
           targetRowIndex = i + 1;
           existingId = String(rows[i][0]);
-          isReviewed = Boolean(rows[i][10]);
-          teacherComment = String(rows[i][11] || '');
-          reviewedBy = String(rows[i][12] || '황규문');
+          headers.forEach((h, colIdx) => {
+            existingRow[h] = rows[i][colIdx];
+          });
           break;
         }
       }
       
       const portfolioId = existingId || ('PF-' + Utilities.formatDate(new Date(), 'GMT+9', 'yyyyMMdd-HHmmss'));
-      const step1 = body.step1_research || '';
-      const step2 = body.step2_experiment || '';
-      const step3Lesson = body.step3_failure_lesson || '';
-      const step3Revised = body.step3_revised_hypothesis || '';
-      const step4 = body.step4_conclusion || '';
-      
-      const rowData = [
-        portfolioId, questionId, studentName, step1, step2, step3Lesson, step3Revised, step4, nowStr, gradeClass, isReviewed, teacherComment, reviewedBy
-      ];
+      const record = {
+        id: portfolioId,
+        question_id: questionId || existingRow.question_id || '',
+        student_name: studentName || existingRow.student_name || '',
+        step1_research: body.step1_research !== undefined ? body.step1_research : (existingRow.step1_research || ''),
+        step2_experiment: body.step2_experiment !== undefined ? body.step2_experiment : (existingRow.step2_experiment || ''),
+        step3_failure_lesson: body.step3_failure_lesson !== undefined ? body.step3_failure_lesson : (existingRow.step3_failure_lesson || ''),
+        step3_revised_hypothesis: body.step3_revised_hypothesis !== undefined ? body.step3_revised_hypothesis : (existingRow.step3_revised_hypothesis || ''),
+        step4_conclusion: body.step4_conclusion !== undefined ? body.step4_conclusion : (existingRow.step4_conclusion || ''),
+        last_updated: nowStr,
+        grade_class: gradeClass || existingRow.grade_class || '',
+        is_reviewed: body.is_reviewed !== undefined ? Boolean(body.is_reviewed) : (existingRow.is_reviewed || false),
+        teacher_comment: body.teacher_comment !== undefined ? body.teacher_comment : (existingRow.teacher_comment || ''),
+        reviewed_by: body.reviewed_by !== undefined ? body.reviewed_by : (existingRow.reviewed_by || '황규문'),
+        step1_status: body.step1_status !== undefined ? body.step1_status : (existingRow.step1_status || 'writing'),
+        step1_feedback: body.step1_feedback !== undefined ? body.step1_feedback : (existingRow.step1_feedback || ''),
+        step2_status: body.step2_status !== undefined ? body.step2_status : (existingRow.step2_status || 'writing'),
+        step2_feedback: body.step2_feedback !== undefined ? body.step2_feedback : (existingRow.step2_feedback || ''),
+        step3_status: body.step3_status !== undefined ? body.step3_status : (existingRow.step3_status || 'writing'),
+        step3_feedback: body.step3_feedback !== undefined ? body.step3_feedback : (existingRow.step3_feedback || ''),
+        step4_status: body.step4_status !== undefined ? body.step4_status : (existingRow.step4_status || 'writing'),
+        step4_feedback: body.step4_feedback !== undefined ? body.step4_feedback : (existingRow.step4_feedback || '')
+      };
+
+      const rowData = headers.map(h => record[h] !== undefined ? record[h] : '');
       
       if (targetRowIndex > 0) {
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
       } else {
         sheet.appendRow(rowData);
       }
+      SpreadsheetApp.flush();
       
-      return createResponse({ success: true, data: { id: portfolioId, question_id: questionId, student_name: studentName, last_updated: nowStr, grade_class: gradeClass, is_reviewed: isReviewed, teacher_comment: teacherComment, reviewed_by: reviewedBy } });
+      return createResponse({ success: true, data: record });
+    }
+
+    // 13-1. 포트폴리오 단계별 승인/보류 및 피드백 전용 저장
+    if (action === 'savePortfolioStepApproval') {
+      const sheet = ss.getSheetByName(SHEET_PORTFOLIOS);
+      let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const stepCols = [
+        'step1_status', 'step1_feedback', 'step2_status', 'step2_feedback',
+        'step3_status', 'step3_feedback', 'step4_status', 'step4_feedback'
+      ];
+      stepCols.forEach(col => {
+        if (!headers.includes(col)) {
+          sheet.getRange(1, sheet.getLastColumn() + 1).setValue(col);
+          headers.push(col);
+        }
+      });
+
+      const rows = sheet.getDataRange().getValues();
+      const portfolioId = String(body.id || '');
+      const stepNum = body.step_num;
+      const status = String(body.status || 'writing');
+      const feedback = String(body.feedback || '');
+      const statusCol = headers.indexOf(`step${stepNum}_status`);
+      const feedbackCol = headers.indexOf(`step${stepNum}_feedback`);
+      const updatedCol = headers.indexOf('last_updated');
+      const nowStr = Utilities.formatDate(new Date(), 'GMT+9', 'yyyy-MM-dd HH:mm:ss');
+
+      for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i][0]) === portfolioId) {
+          if (statusCol >= 0) sheet.getRange(i + 1, statusCol + 1).setValue(status);
+          if (feedbackCol >= 0) sheet.getRange(i + 1, feedbackCol + 1).setValue(feedback);
+          if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(nowStr);
+          SpreadsheetApp.flush();
+          return createResponse({ success: true, message: `${stepNum}단계 상태(${status}) 및 피드백 저장 완료` });
+        }
+      }
+      return createResponse({ success: false, error: '포트폴리오를 찾을 수 없습니다.' });
     }
 
     // 14. 교사 확인 도장 및 총평 저장 (reviewed_by 황규문 기록)

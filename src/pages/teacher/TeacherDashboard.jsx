@@ -1033,12 +1033,12 @@ export default function TeacherDashboard() {
                                     </div>
                                   )}
                                   <div className="space-y-1.5 pt-1">
-                                    <input
-                                      type="text"
+                                    <textarea
+                                      rows={3}
                                       placeholder="학생에게 보낼 1단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
                                       value={fb1}
                                       onChange={(e) => handleStepFeedbackChange(`${pf.id}_step1`, e.target.value)}
-                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none leading-relaxed"
                                     />
                                     <div className="flex justify-end gap-2">
                                       <button
@@ -1098,12 +1098,12 @@ export default function TeacherDashboard() {
                                     </div>
                                   )}
                                   <div className="space-y-1.5 pt-1">
-                                    <input
-                                      type="text"
+                                    <textarea
+                                      rows={3}
                                       placeholder="학생에게 보낼 2단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
                                       value={fb2}
                                       onChange={(e) => handleStepFeedbackChange(`${pf.id}_step2`, e.target.value)}
-                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none leading-relaxed"
                                     />
                                     <div className="flex justify-end gap-2">
                                       <button
@@ -1168,12 +1168,12 @@ export default function TeacherDashboard() {
                                     </div>
                                   )}
                                   <div className="space-y-1.5 pt-1">
-                                    <input
-                                      type="text"
+                                    <textarea
+                                      rows={3}
                                       placeholder="학생에게 보낼 3단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
                                       value={fb3}
                                       onChange={(e) => handleStepFeedbackChange(`${pf.id}_step3`, e.target.value)}
-                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400"
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none leading-relaxed"
                                     />
                                     <div className="flex justify-end gap-2">
                                       <button

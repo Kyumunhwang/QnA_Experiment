@@ -17,7 +17,8 @@ import {
   Plus,
   MessageSquare,
   ShieldCheck,
-  BookOpen
+  BookOpen,
+  AlertTriangle
 } from 'lucide-react';
 import WeeklyScoreBanner from '../components/student/WeeklyScoreBanner';
 
@@ -464,6 +465,27 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* 1단계 탐구 일지 가설 보완 요청 피드백 말풍선 (있는 경우 카드에 최우선 강조 표시) */}
+                {(() => {
+                  const studentPf = portfolios.find(
+                    (p) => p.question_id === q.id || (p.student_name === q.student_name && !p.question_id)
+                  );
+                  if (studentPf?.step1_status === 'held' && studentPf.step1_feedback) {
+                    return (
+                      <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl space-y-1.5 text-xs animate-fadeIn shadow-xs">
+                        <div className="flex items-center space-x-1.5 text-rose-800 font-black">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>선생님의 1단계 가설 보완 요청 피드백 (수정 필요):</span>
+                        </div>
+                        <p className="text-slate-900 bg-white/90 p-2.5 rounded-xl border border-rose-200 font-bold leading-relaxed whitespace-pre-line shadow-xs">
+                          "{studentPf.step1_feedback}"
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* 하단 버튼 액션: 교사 승인 토글 / 탐구 일지 쓰기 */}
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <span className="text-[11px] text-slate-400">
@@ -486,13 +508,26 @@ export default function Home() {
 
                     {isApproved ? (
                       isMyQuestion || isTeacherMode || currentTeacher ? (
-                        <button
-                          onClick={() => handleStartExplore(q)}
-                          className="inline-flex items-center space-x-1 text-xs font-extrabold px-3.5 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-sm active:scale-95"
-                        >
-                          <Compass className="w-3.5 h-3.5" />
-                          <span>탐구 일지 쓰기</span>
-                        </button>
+                        (() => {
+                          const studentPf = portfolios.find(
+                            (p) => p.question_id === q.id || (p.student_name === q.student_name && !p.question_id)
+                          );
+                          const isHeld = studentPf?.step1_status === 'held';
+
+                          return (
+                            <button
+                              onClick={() => handleStartExplore(q)}
+                              className={`inline-flex items-center space-x-1 text-xs font-black px-3.5 py-1.5 rounded-xl transition shadow-sm active:scale-95 ${
+                                isHeld
+                                  ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                                  : 'bg-slate-900 text-white hover:bg-slate-800'
+                              }`}
+                            >
+                              <Compass className="w-3.5 h-3.5" />
+                              <span>{isHeld ? '가설 보완 피드백 반영하기' : '탐구 일지 쓰기'}</span>
+                            </button>
+                          );
+                        })()
                       ) : (
                         <span className="inline-flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

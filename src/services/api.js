@@ -640,8 +640,36 @@ export async function updateQuestionStatus(questionId, status, teacherFeedback) 
   return target;
 }
 
+/** 포트폴리오 데이터 정규화 및 피드백 JSON 브릿지 파싱 */
+function normalizePortfolioRecord(p) {
+  if (!p) return p;
+  const item = { ...p };
+
+  // 1. teacher_comment 필드에 단계별 피드백 JSON이 직렬화되어 있는 경우 자동 파싱
+  if (typeof item.teacher_comment === 'string' && item.teacher_comment.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(item.teacher_comment);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.step1_status && (!item.step1_status || item.step1_status === 'writing')) item.step1_status = parsed.step1_status;
+        if (parsed.step1_feedback && !item.step1_feedback) item.step1_feedback = parsed.step1_feedback;
+        if (parsed.step2_status && (!item.step2_status || item.step2_status === 'writing')) item.step2_status = parsed.step2_status;
+        if (parsed.step2_feedback && !item.step2_feedback) item.step2_feedback = parsed.step2_feedback;
+        if (parsed.step3_status && (!item.step3_status || item.step3_status === 'writing')) item.step3_status = parsed.step3_status;
+        if (parsed.step3_feedback && !item.step3_feedback) item.step3_feedback = parsed.step3_feedback;
+        if (parsed.step4_status && (!item.step4_status || item.step4_status === 'writing')) item.step4_status = parsed.step4_status;
+        if (parsed.step4_feedback && !item.step4_feedback) item.step4_feedback = parsed.step4_feedback;
+        if (parsed.final_comment !== undefined) item.teacher_comment = parsed.final_comment;
+      }
+    } catch (e) {}
+  }
+  return item;
+}
+
 /** 포트폴리오 목록 조회 */
 export async function getPortfolios(studentName, questionId) {
+  const localList = getLocal(STORAGE_KEY_PORTFOLIOS, []).map(normalizePortfolioRecord);
+  let mergedList = [...localList];
+
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
@@ -650,11 +678,39 @@ export async function getPortfolios(studentName, questionId) {
       if (questionId) query += `&question_id=${encodeURIComponent(questionId)}`;
       const res = await fetch(query);
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) return json.data;
+      if (json.success && Array.isArray(json.data)) {
+        const gasData = json.data.map(normalizePortfolioRecord);
+        // GAS 데이터와 로컬 데이터 안전 병합 (로컬의 최신 피드백 보존)
+        gasData.forEach((gasItem) => {
+          const localIdx = mergedList.findIndex((p) => p.id === gasItem.id || (p.question_id === gasItem.question_id && p.student_name === gasItem.student_name));
+          if (localIdx >= 0) {
+            const localItem = mergedList[localIdx];
+            mergedList[localIdx] = {
+              ...gasItem,
+              step1_status: gasItem.step1_status || localItem.step1_status || 'writing',
+              step1_feedback: gasItem.step1_feedback || localItem.step1_feedback || '',
+              step2_status: gasItem.step2_status || localItem.step2_status || 'writing',
+              step2_feedback: gasItem.step2_feedback || localItem.step2_feedback || '',
+              step3_status: gasItem.step3_status || localItem.step3_status || 'writing',
+              step3_feedback: gasItem.step3_feedback || localItem.step3_feedback || '',
+              step4_status: gasItem.step4_status || localItem.step4_status || 'writing',
+              step4_feedback: gasItem.step4_feedback || localItem.step4_feedback || '',
+              step1_research: gasItem.step1_research || localItem.step1_research || '',
+              step2_experiment: gasItem.step2_experiment || localItem.step2_experiment || '',
+              step3_failure_lesson: gasItem.step3_failure_lesson || localItem.step3_failure_lesson || '',
+              step3_revised_hypothesis: gasItem.step3_revised_hypothesis || localItem.step3_revised_hypothesis || '',
+              step4_conclusion: gasItem.step4_conclusion || localItem.step4_conclusion || '',
+            };
+          } else {
+            mergedList.push(gasItem);
+          }
+        });
+        setLocal(STORAGE_KEY_PORTFOLIOS, mergedList);
+      }
     } catch (err) {}
   }
-  const list = getLocal(STORAGE_KEY_PORTFOLIOS, []);
-  return list.filter(item => {
+
+  return mergedList.filter(item => {
     let match = true;
     if (studentName && item.student_name !== studentName) match = false;
     if (questionId && String(item.question_id) !== String(questionId)) match = false;
@@ -664,7 +720,7 @@ export async function getPortfolios(studentName, questionId) {
 
 /** 포트폴리오 저장 */
 export async function savePortfolio(portfolioData) {
-  const list = getLocal(STORAGE_KEY_PORTFOLIOS, []);
+  const list = getLocal(STORAGE_KEY_PORTFOLIOS, []).map(normalizePortfolioRecord);
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
   let targetId = portfolioData.id;
@@ -726,7 +782,7 @@ export async function savePortfolio(portfolioData) {
 
 /** 탐구 일지 각 단계별 교사 승인 또는 보류 처리 */
 export async function savePortfolioStepApproval(portfolioId, stepNum, status, feedback = '') {
-  const list = getLocal(STORAGE_KEY_PORTFOLIOS, []);
+  const list = getLocal(STORAGE_KEY_PORTFOLIOS, []).map(normalizePortfolioRecord);
   const target = list.find(p => p.id === portfolioId);
   if (target) {
     target[`step${stepNum}_status`] = status; // 'approved' | 'held' | 'submitted' | 'writing'
@@ -740,7 +796,7 @@ export async function savePortfolioStepApproval(portfolioId, stepNum, status, fe
   const apiUrl = getGasApiUrl();
   if (apiUrl && target) {
     try {
-      // 1. 단계 승인 전용 액션 시도
+      // 1. 신규 GAS 단계 승인 전용 액션 시도
       await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -752,7 +808,33 @@ export async function savePortfolioStepApproval(portfolioId, stepNum, status, fe
           feedback: target[`step${stepNum}_feedback`] || feedback,
         }),
       });
-      // 2. GAS 호환 보장을 위해 savePortfolio 전체 갱신도 함께 전송
+
+      // 2. 현재 배포된 GAS와의 100% 즉시 클라우드 호환을 위해 teacher_comment에 JSON 백업 동기화
+      const commentPayload = {
+        step1_status: target.step1_status,
+        step1_feedback: target.step1_feedback,
+        step2_status: target.step2_status,
+        step2_feedback: target.step2_feedback,
+        step3_status: target.step3_status,
+        step3_feedback: target.step3_feedback,
+        step4_status: target.step4_status,
+        step4_feedback: target.step4_feedback,
+        final_comment: target.final_teacher_comment || (typeof target.teacher_comment === 'string' && !target.teacher_comment.startsWith('{') ? target.teacher_comment : ''),
+      };
+
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'reviewPortfolio',
+          id: portfolioId,
+          is_reviewed: Boolean(target.is_reviewed),
+          teacher_comment: JSON.stringify(commentPayload),
+          reviewed_by: target.reviewed_by || '황규문',
+        }),
+      });
+
+      // 3. GAS 호환 보장을 위해 savePortfolio 전체 갱신도 전송
       await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
