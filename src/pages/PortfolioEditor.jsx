@@ -24,7 +24,8 @@ import {
   XCircle,
   Send,
   ShieldCheck,
-  RotateCcw
+  RotateCcw,
+  MessageSquareQuote
 } from 'lucide-react';
 
 export default function PortfolioEditor() {
@@ -615,6 +616,21 @@ export default function PortfolioEditor() {
               </p>
             </div>
 
+            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용) */}
+            {step1Feedback && (
+              <div className={`p-3.5 rounded-2xl border-2 space-y-1.5 animate-fadeIn ${
+                step1Status === 'held' ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-blue-50 border-blue-300 text-blue-950'
+              }`}>
+                <div className="flex items-center space-x-1.5 font-extrabold text-xs">
+                  <MessageSquareQuote className={`w-4 h-4 ${step1Status === 'held' ? 'text-rose-600' : 'text-blue-600'}`} />
+                  <span>{step1Status === 'held' ? '⚠️ 선생님의 1단계 보완 요청 피드백 (반영 후 재요청하세요):' : '💬 선생님의 1단계 지도 피드백:'}</span>
+                </div>
+                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
+                  "{step1Feedback}"
+                </p>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 block">
                 나의 초기 가설 및 사전 조사 내용
@@ -647,6 +663,21 @@ export default function PortfolioEditor() {
                 실험 준비물, 통제 변인(같게 한 조건), 조작 변인(다르게 한 조건), 관찰 과정을 구체적으로 적어주세요.
               </p>
             </div>
+
+            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용) */}
+            {step2Feedback && (
+              <div className={`p-3.5 rounded-2xl border-2 space-y-1.5 animate-fadeIn ${
+                step2Status === 'held' ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+              }`}>
+                <div className="flex items-center space-x-1.5 font-extrabold text-xs">
+                  <MessageSquareQuote className={`w-4 h-4 ${step2Status === 'held' ? 'text-rose-600' : 'text-emerald-600'}`} />
+                  <span>{step2Status === 'held' ? '⚠️ 선생님의 2단계 보완 요청 피드백 (반영 후 재요청하세요):' : '💬 선생님의 2단계 지도 피드백:'}</span>
+                </div>
+                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
+                  "{step2Feedback}"
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 block">
@@ -695,6 +726,21 @@ export default function PortfolioEditor() {
                 결과가 실패했더라도 절대 실망하지 마세요. 무엇을 배웠는지가 가장 중요한 점수입니다!
               </p>
             </div>
+
+            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용) */}
+            {step3Feedback && (
+              <div className={`p-3.5 rounded-2xl border-2 space-y-1.5 animate-fadeIn ${
+                step3Status === 'held' ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-rose-50/60 border-rose-200 text-rose-950'
+              }`}>
+                <div className="flex items-center space-x-1.5 font-extrabold text-xs">
+                  <MessageSquareQuote className={`w-4 h-4 ${step3Status === 'held' ? 'text-rose-600' : 'text-purple-600'}`} />
+                  <span>{step3Status === 'held' ? '⚠️ 선생님의 3단계 보완 요청 피드백 (반영 후 재요청하세요):' : '💬 선생님의 3단계 지도 피드백:'}</span>
+                </div>
+                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
+                  "{step3Feedback}"
+                </p>
+              </div>
+            )}
 
             {/* 필드 1: 실패에서 배운 점 */}
             <div className="space-y-1.5">
@@ -748,6 +794,19 @@ export default function PortfolioEditor() {
                 질문에 대한 최종 답을 정리하고, 이번 탐구를 통해 나 자신이 어떻게 성장했는지 소감을 적어보세요.
               </p>
             </div>
+
+            {/* 선생님 총평 코멘트 카드 */}
+            {(step4Feedback || teacherComment) && (
+              <div className="p-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50 space-y-1.5 animate-fadeIn text-amber-950">
+                <div className="flex items-center space-x-1.5 font-extrabold text-xs text-amber-900">
+                  <MessageSquareQuote className="w-4 h-4 text-amber-600" />
+                  <span>💬 선생님의 4단계 및 최종 총평 피드백:</span>
+                </div>
+                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-amber-200 leading-relaxed whitespace-pre-line shadow-xs">
+                  "{step4Feedback || teacherComment}"
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 block">

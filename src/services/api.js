@@ -730,14 +730,17 @@ export async function savePortfolioStepApproval(portfolioId, stepNum, status, fe
   const target = list.find(p => p.id === portfolioId);
   if (target) {
     target[`step${stepNum}_status`] = status; // 'approved' | 'held' | 'submitted' | 'writing'
-    target[`step${stepNum}_feedback`] = feedback;
+    if (feedback !== undefined && feedback !== null) {
+      target[`step${stepNum}_feedback`] = feedback;
+    }
     target.last_updated = new Date().toISOString().replace('T', ' ').substring(0, 19);
     setLocal(STORAGE_KEY_PORTFOLIOS, [...list]);
   }
 
   const apiUrl = getGasApiUrl();
-  if (apiUrl) {
+  if (apiUrl && target) {
     try {
+      // 1. 단계 승인 전용 액션 시도
       await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -746,10 +749,18 @@ export async function savePortfolioStepApproval(portfolioId, stepNum, status, fe
           id: portfolioId,
           step_num: stepNum,
           status,
-          feedback,
+          feedback: target[`step${stepNum}_feedback`] || feedback,
         }),
       });
-    } catch (err) {}
+      // 2. GAS 호환 보장을 위해 savePortfolio 전체 갱신도 함께 전송
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'savePortfolio', ...target }),
+      });
+    } catch (err) {
+      console.warn('savePortfolioStepApproval GAS error:', err);
+    }
   }
   return target;
 }

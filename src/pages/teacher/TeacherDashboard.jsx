@@ -60,16 +60,29 @@ export default function TeacherDashboard() {
     setTrackerStepFeedbacks((prev) => ({ ...prev, [key]: text }));
   };
 
-  const handleApproveStep = async (portfolioId, stepNum, status) => {
+  const handleApproveStep = async (portfolioId, stepNum, status, existingFeedback = '') => {
     if (!portfolioId) {
       showToast('해당 학생의 포트폴리오 데이터가 아직 생성되지 않았습니다.', 'error');
       return;
     }
     const key = `${portfolioId}_step${stepNum}`;
-    const feedback = (trackerStepFeedbacks[key] || '').trim();
+    const inputFeedback = trackerStepFeedbacks[key];
+    const feedback = (inputFeedback !== undefined ? inputFeedback : (existingFeedback || '')).trim();
+
+    // 보류 시 피드백 코멘트 필수 안내 (단순 보류 방지 및 코멘트 전달 보장)
+    if (status === 'held' && !feedback) {
+      showToast('학생이 보완할 수 있도록 피드백 코멘트를 입력창에 작성한 후 [보류] 버튼을 눌러주세요.', 'error');
+      return;
+    }
+
     setIsProcessingStep(true);
     try {
-      await approvePortfolioStepAction(portfolioId, stepNum, status, feedback);
+      const res = await approvePortfolioStepAction(portfolioId, stepNum, status, feedback);
+      if (res?.success) {
+        // 입력창에 코멘트가 그대로 유지되도록 상태 갱신
+        setTrackerStepFeedbacks((prev) => ({ ...prev, [key]: feedback }));
+        await refreshPortfolios();
+      }
     } finally {
       setIsProcessingStep(false);
     }
@@ -986,171 +999,204 @@ export default function TeacherDashboard() {
                         ) : (
                           <>
                             {/* Step 1. 가설 & 사전조사 심사 카드 */}
-                            <div className="p-3 rounded-2xl border border-blue-200 bg-blue-50/30 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-xs text-blue-900 flex items-center space-x-1.5">
-                                  <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-black">1</span>
-                                  <span>1단계: 가설 및 사전조사 (+3점)</span>
-                                </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                                  pf.step1_status === 'approved'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : pf.step1_status === 'held'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : pf.step1_status === 'submitted'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {pf.step1_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step1_status === 'held' ? '⚠️ 보류됨' : pf.step1_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
-                                {pf.step1_research || '아직 작성되지 않았습니다.'}
-                              </p>
-                              {pf.step1_feedback && (
-                                <p className="text-[11px] text-blue-800 bg-blue-100/60 p-2 rounded-lg font-medium">
-                                  이전 피드백: "{pf.step1_feedback}"
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  placeholder="1단계 피드백 입력..."
-                                  value={trackerStepFeedbacks[`${pf.id}_step1`] || ''}
-                                  onChange={(e) => handleStepFeedbackChange(`${pf.id}_step1`, e.target.value)}
-                                  className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleApproveStep(pf.id, 1, 'approved')}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition"
-                                >
-                                  승인 (+3)
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleApproveStep(pf.id, 1, 'held')}
-                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shrink-0 transition"
-                                >
-                                  보류
-                                </button>
-                              </div>
-                            </div>
+                            {(() => {
+                              const fb1 = trackerStepFeedbacks[`${pf.id}_step1`] !== undefined
+                                ? trackerStepFeedbacks[`${pf.id}_step1`]
+                                : (pf.step1_feedback || '');
+
+                              return (
+                                <div className="p-3 rounded-2xl border border-blue-200 bg-blue-50/30 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-extrabold text-xs text-blue-900 flex items-center space-x-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-black">1</span>
+                                      <span>1단계: 가설 및 사전조사 (+3점)</span>
+                                    </span>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                      pf.step1_status === 'approved'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : pf.step1_status === 'held'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : pf.step1_status === 'submitted'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {pf.step1_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step1_status === 'held' ? '⚠️ 보류됨' : pf.step1_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
+                                    {pf.step1_research || '아직 작성되지 않았습니다.'}
+                                  </p>
+                                  {pf.step1_feedback && (
+                                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 1단계 피드백:</span>
+                                      <p className="text-rose-900 font-bold leading-relaxed">"{pf.step1_feedback}"</p>
+                                    </div>
+                                  )}
+                                  <div className="space-y-1.5 pt-1">
+                                    <input
+                                      type="text"
+                                      placeholder="학생에게 보낼 1단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
+                                      value={fb1}
+                                      onChange={(e) => handleStepFeedbackChange(`${pf.id}_step1`, e.target.value)}
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 1, 'held', pf.step1_feedback)}
+                                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        코멘트와 함께 보류
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 1, 'approved', pf.step1_feedback)}
+                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        승인 (+3점)
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {/* Step 2. 실행 & 실험 심사 카드 */}
-                            <div className="p-3 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-xs text-emerald-900 flex items-center space-x-1.5">
-                                  <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 text-[10px] flex items-center justify-center font-black">2</span>
-                                  <span>2단계: 실험 및 관찰 과정 (+3점)</span>
-                                </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                                  pf.step2_status === 'approved'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : pf.step2_status === 'held'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : pf.step2_status === 'submitted'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {pf.step2_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step2_status === 'held' ? '⚠️ 보류됨' : pf.step2_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
-                                {pf.step2_experiment || '아직 작성되지 않았습니다.'}
-                              </p>
-                              {pf.step2_feedback && (
-                                <p className="text-[11px] text-emerald-800 bg-emerald-100/60 p-2 rounded-lg font-medium">
-                                  이전 피드백: "{pf.step2_feedback}"
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  placeholder="2단계 피드백 입력..."
-                                  value={trackerStepFeedbacks[`${pf.id}_step2`] || ''}
-                                  onChange={(e) => handleStepFeedbackChange(`${pf.id}_step2`, e.target.value)}
-                                  className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleApproveStep(pf.id, 2, 'approved')}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition"
-                                >
-                                  승인 (+3)
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleApproveStep(pf.id, 2, 'held')}
-                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shrink-0 transition"
-                                >
-                                  보류
-                                </button>
-                              </div>
-                            </div>
+                            {(() => {
+                              const fb2 = trackerStepFeedbacks[`${pf.id}_step2`] !== undefined
+                                ? trackerStepFeedbacks[`${pf.id}_step2`]
+                                : (pf.step2_feedback || '');
+
+                              return (
+                                <div className="p-3 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-extrabold text-xs text-emerald-900 flex items-center space-x-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 text-[10px] flex items-center justify-center font-black">2</span>
+                                      <span>2단계: 실험 및 관찰 과정 (+3점)</span>
+                                    </span>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                      pf.step2_status === 'approved'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : pf.step2_status === 'held'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : pf.step2_status === 'submitted'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {pf.step2_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step2_status === 'held' ? '⚠️ 보류됨' : pf.step2_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
+                                    {pf.step2_experiment || '아직 작성되지 않았습니다.'}
+                                  </p>
+                                  {pf.step2_feedback && (
+                                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 2단계 피드백:</span>
+                                      <p className="text-rose-900 font-bold leading-relaxed">"{pf.step2_feedback}"</p>
+                                    </div>
+                                  )}
+                                  <div className="space-y-1.5 pt-1">
+                                    <input
+                                      type="text"
+                                      placeholder="학생에게 보낼 2단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
+                                      value={fb2}
+                                      onChange={(e) => handleStepFeedbackChange(`${pf.id}_step2`, e.target.value)}
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 2, 'held', pf.step2_feedback)}
+                                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        코멘트와 함께 보류
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 2, 'approved', pf.step2_feedback)}
+                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        승인 (+3점)
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {/* Step 3. 실패 분석 심사 카드 */}
-                            <div className="p-3 rounded-2xl border border-rose-200 bg-rose-50/30 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-xs text-rose-900 flex items-center space-x-1.5">
-                                  <span className="w-4 h-4 rounded-full bg-rose-100 text-rose-700 text-[10px] flex items-center justify-center font-black">3</span>
-                                  <span>3단계: 실패 분석 및 가설 수정 (+3점)</span>
-                                </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                                  pf.step3_status === 'approved'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : pf.step3_status === 'held'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : pf.step3_status === 'submitted'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {pf.step3_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step3_status === 'held' ? '⚠️ 보류됨' : pf.step3_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
-                                </span>
-                              </div>
-                              <div className="space-y-1 text-xs bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed">
-                                <div className="text-slate-800">
-                                  <strong className="text-rose-700">• 배운 점:</strong> {pf.step3_failure_lesson || '미작성'}
+                            {(() => {
+                              const fb3 = trackerStepFeedbacks[`${pf.id}_step3`] !== undefined
+                                ? trackerStepFeedbacks[`${pf.id}_step3`]
+                                : (pf.step3_feedback || '');
+
+                              return (
+                                <div className="p-3 rounded-2xl border border-rose-200 bg-rose-50/30 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-extrabold text-xs text-rose-900 flex items-center space-x-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-rose-100 text-rose-700 text-[10px] flex items-center justify-center font-black">3</span>
+                                      <span>3단계: 실패 분석 및 가설 수정 (+3점)</span>
+                                    </span>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                      pf.step3_status === 'approved'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : pf.step3_status === 'held'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : pf.step3_status === 'submitted'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {pf.step3_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step3_status === 'held' ? '⚠️ 보류됨' : pf.step3_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1 text-xs bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed">
+                                    <div className="text-slate-800">
+                                      <strong className="text-rose-700">• 배운 점:</strong> {pf.step3_failure_lesson || '미작성'}
+                                    </div>
+                                    <div className="text-slate-800">
+                                      <strong className="text-amber-700">• 수정한 가설:</strong> {pf.step3_revised_hypothesis || '미작성'}
+                                    </div>
+                                  </div>
+                                  {pf.step3_feedback && (
+                                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 3단계 피드백:</span>
+                                      <p className="text-rose-900 font-bold leading-relaxed">"{pf.step3_feedback}"</p>
+                                    </div>
+                                  )}
+                                  <div className="space-y-1.5 pt-1">
+                                    <input
+                                      type="text"
+                                      placeholder="학생에게 보낼 3단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
+                                      value={fb3}
+                                      onChange={(e) => handleStepFeedbackChange(`${pf.id}_step3`, e.target.value)}
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 3, 'held', pf.step3_feedback)}
+                                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        코멘트와 함께 보류
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 3, 'approved', pf.step3_feedback)}
+                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        승인 (+3점)
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="text-slate-800">
-                                  <strong className="text-amber-700">• 수정한 가설:</strong> {pf.step3_revised_hypothesis || '미작성'}
-                                </div>
-                              </div>
-                              {pf.step3_feedback && (
-                                <p className="text-[11px] text-rose-800 bg-rose-100/60 p-2 rounded-lg font-medium">
-                                  이전 피드백: "{pf.step3_feedback}"
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  placeholder="3단계 피드백 입력..."
-                                  value={trackerStepFeedbacks[`${pf.id}_step3`] || ''}
-                                  onChange={(e) => handleStepFeedbackChange(`${pf.id}_step3`, e.target.value)}
-                                  className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleApproveStep(pf.id, 3, 'approved')}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition"
-                                >
-                                  승인 (+3)
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleApproveStep(pf.id, 3, 'held')}
-                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shrink-0 transition"
-                                >
-                                  보류
-                                </button>
-                              </div>
-                            </div>
+                              );
+                            })()}
 
                             {/* Step 4. 최종 결론 및 도장 승인 카드 */}
                             <div className="p-3 rounded-2xl border border-amber-300 bg-amber-50/40 space-y-2">
