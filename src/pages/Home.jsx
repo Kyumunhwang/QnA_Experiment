@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { matchesStudentName } from '../services/api';
 import {
   Sparkles,
   ArrowRight,
@@ -109,7 +110,16 @@ export default function Home() {
       return;
     }
 
-    navigate(`/portfolio/new?questionId=${question.id}`);
+    const studentPf = portfolios.find(
+      (p) => String(p.question_id).trim() === String(question.id).trim() ||
+             (p.student_name && matchesStudentName(p.student_name, question.student_name))
+    );
+
+    const targetUrl = studentPf
+      ? `/portfolio/new?questionId=${question.id}&id=${studentPf.id}`
+      : `/portfolio/new?questionId=${question.id}`;
+
+    navigate(targetUrl);
   };
 
   return (
@@ -468,7 +478,7 @@ export default function Home() {
                 {/* 1단계 탐구 일지 가설 보완 요청 피드백 말풍선 (있는 경우 카드에 최우선 강조 표시) */}
                 {(() => {
                   const studentPf = portfolios.find(
-                    (p) => p.question_id === q.id || (p.student_name === q.student_name && !p.question_id)
+                    (p) => String(p.question_id).trim() === String(q.id).trim() || (p.student_name && matchesStudentName(p.student_name, q.student_name))
                   );
                   if (studentPf?.step1_status === 'held' && studentPf.step1_feedback) {
                     return (
@@ -510,7 +520,7 @@ export default function Home() {
                       isMyQuestion || isTeacherMode || currentTeacher ? (
                         (() => {
                           const studentPf = portfolios.find(
-                            (p) => p.question_id === q.id || (p.student_name === q.student_name && !p.question_id)
+                            (p) => String(p.question_id).trim() === String(q.id).trim() || (p.student_name && matchesStudentName(p.student_name, q.student_name))
                           );
                           const isHeld = studentPf?.step1_status === 'held';
 

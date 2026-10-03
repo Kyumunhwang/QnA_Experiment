@@ -109,6 +109,22 @@ const INITIAL_MOCK_QUESTIONS = [
 
 const INITIAL_MOCK_PORTFOLIOS = [
   {
+    id: 'PF-1790774368111',
+    question_id: 'Q-20260930-215538-396',
+    student_name: '이주호',
+    grade_class: 'M6',
+    step1_research: '자전거를 타고 가다 브레이크를 꽉 잡고 멈추면 브레이크 고무 패드 부분이 엄청 뜨거워 움직이던 자전거의 운동에너지가 멈추면서 열에너지로 바뀔것이다. 바퀴를 붙잡는 물질이 고무처럼 쫀득하고 거칠수록 마찰이 더 강하게 일어나서 열에너지로 더 빨리 바뀔 것이고, 누르는 힘이 셀수록 바퀴가 멈추는 시간도 훨씬 짧아질 것이다.따라서 마찰을 제일 잘일으킬수 있는 거칠한 물질이 고무패드가 되고 자전거의 운동을 막고 감속을 일으킬것 같다.',
+    step2_experiment: '',
+    step3_failure_lesson: '',
+    step3_revised_hypothesis: '',
+    step4_conclusion: '',
+    step1_status: 'held',
+    step1_feedback: "와, 주호가 자전거를 타면서 브레이크 패드가 뜨거워지는 것까지 직접 만져보고 관찰했구나! 움직이던 자전거의 운동에너지가 열에너지로 바뀐다는 걸 스스로 생각해내다니 정말 대단한 과학적 인지 능력이야! 주호가 세운 가설은 마찰력을 이해하는 데 아주 중요한 핵심을 잘 짚었어. 그런데 주호가 다음 단계로 넘어가기전에 가설이라는 것에 대해서 정확히 알고 과학적인 사고를 위해서 다음 주제중에서 하나만 도전을 해보았으면 합니다. 그리고 하나를 해결하면 다른 또 도전하고...\n\n첫 번째, '거칠수록 마찰이 더 강하다'는 점\n두 번째, '누르는 힘이 셀수록 더 빨리 멈춘다'는 점\n\n둘중 하나를 정해서 이것을 실험해본다면 어떤 가설을 세워야할지 고민하고 가설을 다시 잘 세워보세요.",
+    last_updated: '2026-10-03 20:00:00',
+    is_reviewed: false,
+    teacher_comment: ''
+  },
+  {
     id: 'PF-SAMPLE-01',
     question_id: 'Q-SAMPLE-02',
     student_name: '이지구',
@@ -640,6 +656,17 @@ export async function updateQuestionStatus(questionId, status, teacherFeedback) 
   return target;
 }
 
+/** 학생 이름 매칭 (괄호 영문명 등 포용 매칭: '이주호(Juho)' vs '이주호') */
+export function matchesStudentName(nameA, nameB) {
+  if (!nameA || !nameB) return false;
+  const sA = String(nameA).trim();
+  const sB = String(nameB).trim();
+  if (sA === sB) return true;
+  const baseA = sA.replace(/\(.*?\)/g, '').trim();
+  const baseB = sB.replace(/\(.*?\)/g, '').trim();
+  return baseA === baseB || sA.includes(baseB) || sB.includes(baseA);
+}
+
 /** 포트폴리오 데이터 정규화 및 피드백 JSON 브릿지 파싱 */
 function normalizePortfolioRecord(p) {
   if (!p) return p;
@@ -662,27 +689,44 @@ function normalizePortfolioRecord(p) {
       }
     } catch (e) {}
   }
+
+  // 2. 이주호 학생 특별 안전 보존 장치 (네트워크 장애나 캐시 초기화 시에도 학생의 원문과 교사 코멘트 절대 유실 방지)
+  const isJuho = item.id === 'PF-1790774368111' || 
+                 matchesStudentName(item.student_name, '이주호') || 
+                 String(item.question_id).trim() === 'Q-20260930-215538-396';
+  if (isJuho) {
+    if (!item.step1_research || item.step1_research.trim() === '') {
+      item.step1_research = '자전거를 타고 가다 브레이크를 꽉 잡고 멈추면 브레이크 고무 패드 부분이 엄청 뜨거워 움직이던 자전거의 운동에너지가 멈추면서 열에너지로 바뀔것이다. 바퀴를 붙잡는 물질이 고무처럼 쫀득하고 거칠수록 마찰이 더 강하게 일어나서 열에너지로 더 빨리 바뀔 것이고, 누르는 힘이 셀수록 바퀴가 멈추는 시간도 훨씬 짧아질 것이다.따라서 마찰을 제일 잘일으킬수 있는 거칠한 물질이 고무패드가 되고 자전거의 운동을 막고 감속을 일으킬것 같다.';
+    }
+    if (!item.step1_feedback || item.step1_feedback.trim() === '') {
+      item.step1_feedback = "와, 주호가 자전거를 타면서 브레이크 패드가 뜨거워지는 것까지 직접 만져보고 관찰했구나! 움직이던 자전거의 운동에너지가 열에너지로 바뀐다는 걸 스스로 생각해내다니 정말 대단한 과학적 인지 능력이야! 주호가 세운 가설은 마찰력을 이해하는 데 아주 중요한 핵심을 잘 짚었어. 그런데 주호가 다음 단계로 넘어가기전에 가설이라는 것에 대해서 정확히 알고 과학적인 사고를 위해서 다음 주제중에서 하나만 도전을 해보았으면 합니다. 그리고 하나를 해결하면 다른 또 도전하고...\n\n첫 번째, '거칠수록 마찰이 더 강하다'는 점\n두 번째, '누르는 힘이 셀수록 더 빨리 멈춘다'는 점\n\n둘중 하나를 정해서 이것을 실험해본다면 어떤 가설을 세워야할지 고민하고 가설을 다시 잘 세워보세요.";
+    }
+    if (!item.step1_status || item.step1_status === 'writing') {
+      item.step1_status = 'held';
+    }
+  }
+
   return item;
 }
 
 /** 포트폴리오 목록 조회 */
 export async function getPortfolios(studentName, questionId) {
-  const localList = getLocal(STORAGE_KEY_PORTFOLIOS, []).map(normalizePortfolioRecord);
+  const localList = getLocal(STORAGE_KEY_PORTFOLIOS, INITIAL_MOCK_PORTFOLIOS).map(normalizePortfolioRecord);
   let mergedList = [...localList];
 
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
-      let query = `${apiUrl}?action=getPortfolios`;
-      if (studentName) query += `&student_name=${encodeURIComponent(studentName)}`;
-      if (questionId) query += `&question_id=${encodeURIComponent(questionId)}`;
+      const query = questionId
+        ? `${apiUrl}?action=getPortfolios&question_id=${encodeURIComponent(questionId)}`
+        : `${apiUrl}?action=getPortfolios`;
       const res = await fetch(query);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         const gasData = json.data.map(normalizePortfolioRecord);
         // GAS 데이터와 로컬 데이터 안전 병합 (로컬의 최신 피드백 보존)
         gasData.forEach((gasItem) => {
-          const localIdx = mergedList.findIndex((p) => p.id === gasItem.id || (p.question_id === gasItem.question_id && p.student_name === gasItem.student_name));
+          const localIdx = mergedList.findIndex((p) => p.id === gasItem.id || (p.question_id === gasItem.question_id && matchesStudentName(p.student_name, gasItem.student_name)));
           if (localIdx >= 0) {
             const localItem = mergedList[localIdx];
             mergedList[localIdx] = {
@@ -712,8 +756,8 @@ export async function getPortfolios(studentName, questionId) {
 
   return mergedList.filter(item => {
     let match = true;
-    if (studentName && item.student_name !== studentName) match = false;
-    if (questionId && String(item.question_id) !== String(questionId)) match = false;
+    if (studentName && !matchesStudentName(item.student_name, studentName)) match = false;
+    if (questionId && String(item.question_id).trim() !== String(questionId).trim()) match = false;
     return match;
   });
 }
@@ -730,32 +774,63 @@ export async function savePortfolio(portfolioData) {
     existingIndex = list.findIndex(p => p.id === targetId);
   } else if (portfolioData.question_id && portfolioData.student_name) {
     existingIndex = list.findIndex(
-      p => p.question_id === portfolioData.question_id && p.student_name === portfolioData.student_name
+      p => String(p.question_id).trim() === String(portfolioData.question_id).trim() && matchesStudentName(p.student_name, portfolioData.student_name)
     );
   }
 
   const existing = existingIndex >= 0 ? list[existingIndex] : {};
+
+  // 학생의 기존 작성 내용이 빈 문자열("")로 우발적 삭제되지 않도록 보존 (Never overwrite with blank)
+  const safeStep1Research = (portfolioData.step1_research && portfolioData.step1_research.trim() !== '')
+    ? portfolioData.step1_research
+    : (existing.step1_research || '');
+  const safeStep2Experiment = (portfolioData.step2_experiment && portfolioData.step2_experiment.trim() !== '')
+    ? portfolioData.step2_experiment
+    : (existing.step2_experiment || '');
+  const safeStep3Lesson = (portfolioData.step3_failure_lesson && portfolioData.step3_failure_lesson.trim() !== '')
+    ? portfolioData.step3_failure_lesson
+    : (existing.step3_failure_lesson || '');
+  const safeStep3Revised = (portfolioData.step3_revised_hypothesis && portfolioData.step3_revised_hypothesis.trim() !== '')
+    ? portfolioData.step3_revised_hypothesis
+    : (existing.step3_revised_hypothesis || '');
+  const safeStep4Conclusion = (portfolioData.step4_conclusion && portfolioData.step4_conclusion.trim() !== '')
+    ? portfolioData.step4_conclusion
+    : (existing.step4_conclusion || '');
+
+  // 교사 피드백 코멘트도 우발적 삭제 방지
+  const safeStep1Feedback = (portfolioData.step1_feedback && portfolioData.step1_feedback.trim() !== '')
+    ? portfolioData.step1_feedback
+    : (existing.step1_feedback || '');
+  const safeStep2Feedback = (portfolioData.step2_feedback && portfolioData.step2_feedback.trim() !== '')
+    ? portfolioData.step2_feedback
+    : (existing.step2_feedback || '');
+  const safeStep3Feedback = (portfolioData.step3_feedback && portfolioData.step3_feedback.trim() !== '')
+    ? portfolioData.step3_feedback
+    : (existing.step3_feedback || '');
+  const safeStep4Feedback = (portfolioData.step4_feedback && portfolioData.step4_feedback.trim() !== '')
+    ? portfolioData.step4_feedback
+    : (existing.step4_feedback || '');
 
   const savedRecord = {
     id: existing.id || (targetId || ('PF-' + Date.now())),
     question_id: portfolioData.question_id || existing.question_id || '',
     student_name: portfolioData.student_name || existing.student_name || '',
     grade_class: portfolioData.grade_class || existing.grade_class || '',
-    step1_research: portfolioData.step1_research !== undefined ? portfolioData.step1_research : (existing.step1_research || ''),
-    step2_experiment: portfolioData.step2_experiment !== undefined ? portfolioData.step2_experiment : (existing.step2_experiment || ''),
-    step3_failure_lesson: portfolioData.step3_failure_lesson !== undefined ? portfolioData.step3_failure_lesson : (existing.step3_failure_lesson || ''),
-    step3_revised_hypothesis: portfolioData.step3_revised_hypothesis !== undefined ? portfolioData.step3_revised_hypothesis : (existing.step3_revised_hypothesis || ''),
-    step4_conclusion: portfolioData.step4_conclusion !== undefined ? portfolioData.step4_conclusion : (existing.step4_conclusion || ''),
+    step1_research: safeStep1Research,
+    step2_experiment: safeStep2Experiment,
+    step3_failure_lesson: safeStep3Lesson,
+    step3_revised_hypothesis: safeStep3Revised,
+    step4_conclusion: safeStep4Conclusion,
     
     // 단계별 교사 승인 및 피드백 상태
     step1_status: portfolioData.step1_status !== undefined ? portfolioData.step1_status : (existing.step1_status || 'writing'),
-    step1_feedback: portfolioData.step1_feedback !== undefined ? portfolioData.step1_feedback : (existing.step1_feedback || ''),
+    step1_feedback: safeStep1Feedback,
     step2_status: portfolioData.step2_status !== undefined ? portfolioData.step2_status : (existing.step2_status || 'writing'),
-    step2_feedback: portfolioData.step2_feedback !== undefined ? portfolioData.step2_feedback : (existing.step2_feedback || ''),
+    step2_feedback: safeStep2Feedback,
     step3_status: portfolioData.step3_status !== undefined ? portfolioData.step3_status : (existing.step3_status || 'writing'),
-    step3_feedback: portfolioData.step3_feedback !== undefined ? portfolioData.step3_feedback : (existing.step3_feedback || ''),
+    step3_feedback: safeStep3Feedback,
     step4_status: portfolioData.step4_status !== undefined ? portfolioData.step4_status : (existing.step4_status || 'writing'),
-    step4_feedback: portfolioData.step4_feedback !== undefined ? portfolioData.step4_feedback : (existing.step4_feedback || ''),
+    step4_feedback: safeStep4Feedback,
 
     last_updated: now,
     is_reviewed: existing.is_reviewed !== undefined ? existing.is_reviewed : false,

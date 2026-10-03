@@ -1017,19 +1017,22 @@ export default function TeacherDashboard() {
                                         : pf.step1_status === 'held'
                                         ? 'bg-rose-100 text-rose-800'
                                         : pf.step1_status === 'submitted'
-                                        ? 'bg-blue-100 text-blue-800'
+                                        ? 'bg-blue-100 text-blue-800 animate-pulse'
                                         : 'bg-slate-100 text-slate-600'
                                     }`}>
-                                      {pf.step1_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step1_status === 'held' ? '⚠️ 보류됨' : pf.step1_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
+                                      {pf.step1_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step1_status === 'held' ? '⚠️ 보류됨 (학생 수정중)' : pf.step1_status === 'submitted' ? '⏳ 검토요청 (보완 제출됨)' : '작성중'}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
-                                    {pf.step1_research || '아직 작성되지 않았습니다.'}
-                                  </p>
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] font-extrabold text-slate-700 block">📝 학생이 작성/보완한 1단계 가설 내용:</span>
+                                    <p className="text-xs text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed font-medium">
+                                      {pf.step1_research || '아직 작성되지 않았습니다.'}
+                                    </p>
+                                  </div>
                                   {pf.step1_feedback && (
                                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
-                                      <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 1단계 피드백:</span>
-                                      <p className="text-rose-900 font-bold leading-relaxed">"{pf.step1_feedback}"</p>
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 이전에 학생에게 전달한 1단계 피드백:</span>
+                                      <p className="text-rose-900 font-bold leading-relaxed whitespace-pre-line">"{pf.step1_feedback}"</p>
                                     </div>
                                   )}
                                   <div className="space-y-1.5 pt-1">
@@ -1044,7 +1047,7 @@ export default function TeacherDashboard() {
                                       <button
                                         type="button"
                                         disabled={isProcessingStep}
-                                        onClick={() => handleApproveStep(pf.id, 1, 'held', pf.step1_feedback)}
+                                        onClick={() => handleApproveStep(pf.id, 1, 'held', fb1)}
                                         className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
                                       >
                                         코멘트와 함께 보류
@@ -1052,7 +1055,7 @@ export default function TeacherDashboard() {
                                       <button
                                         type="button"
                                         disabled={isProcessingStep}
-                                        onClick={() => handleApproveStep(pf.id, 1, 'approved', pf.step1_feedback)}
+                                        onClick={() => handleApproveStep(pf.id, 1, 'approved', fb1)}
                                         className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
                                       >
                                         승인 (+3점)
@@ -1109,7 +1112,7 @@ export default function TeacherDashboard() {
                                       <button
                                         type="button"
                                         disabled={isProcessingStep}
-                                        onClick={() => handleApproveStep(pf.id, 2, 'held', pf.step2_feedback)}
+                                        onClick={() => handleApproveStep(pf.id, 2, 'held', fb2)}
                                         className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
                                       >
                                         코멘트와 함께 보류
@@ -1117,7 +1120,7 @@ export default function TeacherDashboard() {
                                       <button
                                         type="button"
                                         disabled={isProcessingStep}
-                                        onClick={() => handleApproveStep(pf.id, 2, 'approved', pf.step2_feedback)}
+                                        onClick={() => handleApproveStep(pf.id, 2, 'approved', fb2)}
                                         className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
                                       >
                                         승인 (+3점)
@@ -1147,10 +1150,10 @@ export default function TeacherDashboard() {
                                         : pf.step3_status === 'held'
                                         ? 'bg-rose-100 text-rose-800'
                                         : pf.step3_status === 'submitted'
-                                        ? 'bg-blue-100 text-blue-800'
+                                        ? 'bg-blue-100 text-blue-800 animate-pulse'
                                         : 'bg-slate-100 text-slate-600'
                                     }`}>
-                                      {pf.step3_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step3_status === 'held' ? '⚠️ 보류됨' : pf.step3_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
+                                      {pf.step3_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step3_status === 'held' ? '⚠️ 보류됨 (학생 수정중)' : pf.step3_status === 'submitted' ? '⏳ 검토요청 (보완 제출됨)' : '작성중'}
                                     </span>
                                   </div>
                                   <div className="space-y-1 text-xs bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed">
@@ -1164,7 +1167,7 @@ export default function TeacherDashboard() {
                                   {pf.step3_feedback && (
                                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
                                       <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 3단계 피드백:</span>
-                                      <p className="text-rose-900 font-bold leading-relaxed">"{pf.step3_feedback}"</p>
+                                      <p className="text-rose-900 font-bold leading-relaxed whitespace-pre-line">"{pf.step3_feedback}"</p>
                                     </div>
                                   )}
                                   <div className="space-y-1.5 pt-1">
@@ -1179,7 +1182,7 @@ export default function TeacherDashboard() {
                                       <button
                                         type="button"
                                         disabled={isProcessingStep}
-                                        onClick={() => handleApproveStep(pf.id, 3, 'held', pf.step3_feedback)}
+                                        onClick={() => handleApproveStep(pf.id, 3, 'held', fb3)}
                                         className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
                                       >
                                         코멘트와 함께 보류
@@ -1187,7 +1190,7 @@ export default function TeacherDashboard() {
                                       <button
                                         type="button"
                                         disabled={isProcessingStep}
-                                        onClick={() => handleApproveStep(pf.id, 3, 'approved', pf.step3_feedback)}
+                                        onClick={() => handleApproveStep(pf.id, 3, 'approved', fb3)}
                                         className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
                                       >
                                         승인 (+3점)

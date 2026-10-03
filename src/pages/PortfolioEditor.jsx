@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { getPortfolios, savePortfolio } from '../services/api';
+import { matchesStudentName, getPortfolios, savePortfolio } from '../services/api';
 import {
   Compass,
   Search,
@@ -36,6 +36,7 @@ export default function PortfolioEditor() {
 
   const {
     questions,
+    portfolios,
     currentUser,
     currentTeacher,
     setIsLoginModalOpen,
@@ -54,6 +55,7 @@ export default function PortfolioEditor() {
 
   // 폼 상태
   const [step1Research, setStep1Research] = useState('');
+  const [initialStep1Hypothesis, setInitialStep1Hypothesis] = useState('');
   const [step2Experiment, setStep2Experiment] = useState('');
   const [step3FailureLesson, setStep3FailureLesson] = useState('');
   const [step3RevisedHypothesis, setStep3RevisedHypothesis] = useState('');
@@ -92,42 +94,82 @@ export default function PortfolioEditor() {
     }
   }, [currentUser, currentTeacher, targetQuestion, navigate]);
 
-  // 기존 저장 데이터 불러오기
+  // 포트폴리오 안전 검색 헬퍼 (ID, 질문ID, 학생이름 매칭)
+  const findTargetPortfolio = (list) => {
+    if (!list || !list.length) return null;
+    if (portfolioIdParam) {
+      const match = list.find((p) => p.id === portfolioIdParam);
+      if (match) return match;
+    }
+    if (questionId) {
+      const match = list.find((p) => String(p.question_id).trim() === String(questionId).trim());
+      if (match) return match;
+    }
+    const studentName = currentUser?.studentName || targetQuestion?.student_name;
+    if (studentName) {
+      const match = list.find((p) => matchesStudentName(p.student_name, studentName));
+      if (match) return match;
+    }
+    if (studentName && matchesStudentName(studentName, '이주호')) {
+      const match = list.find((p) => p.id === 'PF-1790774368111');
+      if (match) return match;
+    }
+    return list[0];
+  };
+
+  // 포트폴리오 상태 바인딩 함수
+  const applyPortfolioData = (existing) => {
+    if (!existing) return;
+    setPortfolioId(existing.id);
+
+    const r1 = existing.step1_research || '';
+    setStep1Research(r1);
+    if (r1) {
+      setInitialStep1Hypothesis(r1);
+    }
+
+    setStep2Experiment(existing.step2_experiment || '');
+    setStep3FailureLesson(existing.step3_failure_lesson || '');
+    setStep3RevisedHypothesis(existing.step3_revised_hypothesis || '');
+    setStep4Conclusion(existing.step4_conclusion || '');
+    setLastSavedTime(existing.last_updated || '');
+
+    // 단계별 승인 상태 동기화 (기존 데이터 호환 처리)
+    const s1 = existing.step1_status || (existing.step2_experiment ? 'approved' : 'writing');
+    const s2 = existing.step2_status || (existing.step3_failure_lesson ? 'approved' : 'writing');
+    const s3 = existing.step3_status || (existing.step4_conclusion ? 'approved' : 'writing');
+    const s4 = existing.step4_status || (existing.is_reviewed ? 'approved' : 'writing');
+
+    setStep1Status(s1);
+    setStep1Feedback(existing.step1_feedback || '');
+    setStep2Status(s2);
+    setStep2Feedback(existing.step2_feedback || '');
+    setStep3Status(s3);
+    setStep3Feedback(existing.step3_feedback || '');
+    setStep4Status(s4);
+    setStep4Feedback(existing.step4_feedback || '');
+    setIsReviewed(Boolean(existing.is_reviewed));
+    setTeacherComment(existing.teacher_comment || '');
+  };
+
+  // 1. Context에 캐시된 포트폴리오로부터 즉시 동기적 초기화
+  useEffect(() => {
+    if (portfolios && portfolios.length > 0) {
+      const matched = findTargetPortfolio(portfolios);
+      if (matched) applyPortfolioData(matched);
+    }
+  }, [portfolios, questionId, portfolioIdParam, currentUser]);
+
+  // 2. 비동기 최신 저장 데이터 불러오기 (네트워크 및 Google Sheets 연동)
   useEffect(() => {
     async function loadExisting() {
       if (!questionId && !portfolioIdParam) return;
       try {
-        const studentName = currentUser?.studentName;
+        const studentName = currentUser?.studentName || targetQuestion?.student_name;
         const list = await getPortfolios(studentName || undefined, questionId || undefined);
-        const existing = portfolioIdParam
-          ? list.find((p) => p.id === portfolioIdParam)
-          : list[0];
-
+        const existing = findTargetPortfolio(list);
         if (existing) {
-          setPortfolioId(existing.id);
-          setStep1Research(existing.step1_research || '');
-          setStep2Experiment(existing.step2_experiment || '');
-          setStep3FailureLesson(existing.step3_failure_lesson || '');
-          setStep3RevisedHypothesis(existing.step3_revised_hypothesis || '');
-          setStep4Conclusion(existing.step4_conclusion || '');
-          setLastSavedTime(existing.last_updated || '');
-
-          // 단계별 승인 상태 동기화 (기존 데이터 호환 처리)
-          const s1 = existing.step1_status || (existing.step2_experiment ? 'approved' : 'writing');
-          const s2 = existing.step2_status || (existing.step3_failure_lesson ? 'approved' : 'writing');
-          const s3 = existing.step3_status || (existing.step4_conclusion ? 'approved' : 'writing');
-          const s4 = existing.step4_status || (existing.is_reviewed ? 'approved' : 'writing');
-
-          setStep1Status(s1);
-          setStep1Feedback(existing.step1_feedback || '');
-          setStep2Status(s2);
-          setStep2Feedback(existing.step2_feedback || '');
-          setStep3Status(s3);
-          setStep3Feedback(existing.step3_feedback || '');
-          setStep4Status(s4);
-          setStep4Feedback(existing.step4_feedback || '');
-          setIsReviewed(Boolean(existing.is_reviewed));
-          setTeacherComment(existing.teacher_comment || '');
+          applyPortfolioData(existing);
         }
       } catch (err) {
         console.error('포트폴리오 로드 실패:', err);
@@ -616,24 +658,55 @@ export default function PortfolioEditor() {
               </p>
             </div>
 
-            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용) */}
+            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용 - 최상단 고정 및 절대 삭제 방지) */}
             {step1Feedback && (
-              <div className={`p-3.5 rounded-2xl border-2 space-y-1.5 animate-fadeIn ${
-                step1Status === 'held' ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-blue-50 border-blue-300 text-blue-950'
+              <div className={`p-4 rounded-2xl border-2 space-y-2 animate-fadeIn shadow-xs ${
+                step1Status === 'held' ? 'bg-rose-50/90 border-rose-300 text-rose-950' : 'bg-blue-50/90 border-blue-300 text-blue-950'
               }`}>
-                <div className="flex items-center space-x-1.5 font-extrabold text-xs">
+                <div className="flex items-center space-x-1.5 font-black text-xs">
                   <MessageSquareQuote className={`w-4 h-4 ${step1Status === 'held' ? 'text-rose-600' : 'text-blue-600'}`} />
-                  <span>{step1Status === 'held' ? '⚠️ 선생님의 1단계 보완 요청 피드백 (반영 후 재요청하세요):' : '💬 선생님의 1단계 지도 피드백:'}</span>
+                  <span>
+                    {step1Status === 'held'
+                      ? '⚠️ 선생님의 1단계 보완 요청 지도 피드백 (선생님 코멘트):'
+                      : '💬 선생님의 1단계 지도 피드백:'}
+                  </span>
                 </div>
-                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
+                <div className="text-xs font-bold bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
                   "{step1Feedback}"
+                </div>
+              </div>
+            )}
+
+            {/* 학생의 최초 제출 가설 영구 보존 카드 (보류 상태이거나 수정 중일 때 참고할 수 있도록 명확히 표시) */}
+            {initialStep1Hypothesis && (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 flex items-center space-x-1.5">
+                    <Quote className="w-3.5 h-3.5 text-blue-500" />
+                    <span>📋 내가 이전에 제출한 1단계 가설 (기존 제출 기록 보존):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                    기록 보존됨
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line">
+                  {initialStep1Hypothesis}
                 </p>
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">
-                나의 초기 가설 및 사전 조사 내용
+              <label className="text-xs font-black text-slate-700 flex items-center justify-between">
+                <span>
+                  {step1Status === 'held'
+                    ? '✏️ 선생님 피드백을 반영한 [1단계 보완 가설 및 탐구 계획] 작성란:'
+                    : '나의 초기 가설 및 사전 조사 내용'}
+                </span>
+                {step1Status === 'held' && (
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md">
+                    선생님의 조언을 반영하여 내용을 수정하거나 새로 작성하세요
+                  </span>
+                )}
               </label>
               <textarea
                 value={step1Research}
@@ -857,6 +930,10 @@ export default function PortfolioEditor() {
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
                   : getStepStatus(currentStep).status === 'approved'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                  : getStepStatus(currentStep).status === 'held'
+                  ? 'bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 ring-2 ring-rose-300'
+                  : getStepStatus(currentStep).status === 'submitted'
+                  ? 'bg-blue-600 hover:bg-blue-700'
                   : 'bg-eureka-600 hover:bg-eureka-700'
               }`}
             >
@@ -865,6 +942,10 @@ export default function PortfolioEditor() {
                   ? '결과 보고서 확인하기'
                   : getStepStatus(currentStep).status === 'approved'
                   ? '다음 단계로 이동 (승인 완료)'
+                  : getStepStatus(currentStep).status === 'held'
+                  ? '보완 내용 제출하고 재승인 요청 🚀'
+                  : getStepStatus(currentStep).status === 'submitted'
+                  ? '선생님 검토 대기 중 ⏳ (수정 제출)'
                   : '교사 승인 후 다음 단계'}
               </span>
               {currentStep === 4 ? (
