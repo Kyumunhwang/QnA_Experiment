@@ -1085,19 +1085,22 @@ export default function TeacherDashboard() {
                                         : pf.step2_status === 'held'
                                         ? 'bg-rose-100 text-rose-800'
                                         : pf.step2_status === 'submitted'
-                                        ? 'bg-blue-100 text-blue-800'
+                                        ? 'bg-blue-100 text-blue-800 animate-pulse'
                                         : 'bg-slate-100 text-slate-600'
                                     }`}>
-                                      {pf.step2_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step2_status === 'held' ? '⚠️ 보류됨' : pf.step2_status === 'submitted' ? '⏳ 검토요청' : '작성중'}
+                                      {pf.step2_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step2_status === 'held' ? '⚠️ 보류됨 (학생 수정중)' : pf.step2_status === 'submitted' ? '⏳ 검토요청 (보완 제출됨)' : '작성중'}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
-                                    {pf.step2_experiment || '아직 작성되지 않았습니다.'}
-                                  </p>
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] font-extrabold text-slate-700 block">📝 학생이 작성/보완한 2단계 실험 내용:</span>
+                                    <p className="text-xs text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed font-medium">
+                                      {pf.step2_experiment || '아직 작성되지 않았습니다.'}
+                                    </p>
+                                  </div>
                                   {pf.step2_feedback && (
                                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
-                                      <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 2단계 피드백:</span>
-                                      <p className="text-rose-900 font-bold leading-relaxed">"{pf.step2_feedback}"</p>
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 이전에 학생에게 전달한 2단계 피드백:</span>
+                                      <p className="text-rose-900 font-bold leading-relaxed whitespace-pre-line">"{pf.step2_feedback}"</p>
                                     </div>
                                   )}
                                   <div className="space-y-1.5 pt-1">
@@ -1156,17 +1159,20 @@ export default function TeacherDashboard() {
                                       {pf.step3_status === 'approved' ? '✓ 승인됨 (+3점)' : pf.step3_status === 'held' ? '⚠️ 보류됨 (학생 수정중)' : pf.step3_status === 'submitted' ? '⏳ 검토요청 (보완 제출됨)' : '작성중'}
                                     </span>
                                   </div>
-                                  <div className="space-y-1 text-xs bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed">
-                                    <div className="text-slate-800">
-                                      <strong className="text-rose-700">• 배운 점:</strong> {pf.step3_failure_lesson || '미작성'}
-                                    </div>
-                                    <div className="text-slate-800">
-                                      <strong className="text-amber-700">• 수정한 가설:</strong> {pf.step3_revised_hypothesis || '미작성'}
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] font-extrabold text-slate-700 block">📝 학생이 작성/보완한 3단계 실패 분석 및 수정 가설:</span>
+                                    <div className="space-y-1 text-xs bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed font-medium">
+                                      <div className="text-slate-800">
+                                        <strong className="text-rose-700">• 배운 점:</strong> {pf.step3_failure_lesson || '미작성'}
+                                      </div>
+                                      <div className="text-slate-800">
+                                        <strong className="text-amber-700">• 수정한 가설:</strong> {pf.step3_revised_hypothesis || '미작성'}
+                                      </div>
                                     </div>
                                   </div>
                                   {pf.step3_feedback && (
                                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
-                                      <span className="text-[10px] font-black text-rose-700 block">💬 현재 학생에게 전달된 3단계 피드백:</span>
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 이전에 학생에게 전달한 3단계 피드백:</span>
                                       <p className="text-rose-900 font-bold leading-relaxed whitespace-pre-line">"{pf.step3_feedback}"</p>
                                     </div>
                                   )}

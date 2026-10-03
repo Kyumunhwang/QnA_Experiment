@@ -57,8 +57,11 @@ export default function PortfolioEditor() {
   const [step1Research, setStep1Research] = useState('');
   const [initialStep1Hypothesis, setInitialStep1Hypothesis] = useState('');
   const [step2Experiment, setStep2Experiment] = useState('');
+  const [initialStep2Experiment, setInitialStep2Experiment] = useState('');
   const [step3FailureLesson, setStep3FailureLesson] = useState('');
+  const [initialStep3FailureLesson, setInitialStep3FailureLesson] = useState('');
   const [step3RevisedHypothesis, setStep3RevisedHypothesis] = useState('');
+  const [initialStep3RevisedHypothesis, setInitialStep3RevisedHypothesis] = useState('');
   const [step4Conclusion, setStep4Conclusion] = useState('');
 
   // 단계별 교사 승인/보류 상태 ('writing' | 'submitted' | 'approved' | 'held')
@@ -128,9 +131,23 @@ export default function PortfolioEditor() {
       setInitialStep1Hypothesis(r1);
     }
 
-    setStep2Experiment(existing.step2_experiment || '');
-    setStep3FailureLesson(existing.step3_failure_lesson || '');
-    setStep3RevisedHypothesis(existing.step3_revised_hypothesis || '');
+    const r2 = existing.step2_experiment || '';
+    setStep2Experiment(r2);
+    if (r2) {
+      setInitialStep2Experiment(r2);
+    }
+
+    const r3Lesson = existing.step3_failure_lesson || '';
+    const r3Hypo = existing.step3_revised_hypothesis || '';
+    setStep3FailureLesson(r3Lesson);
+    setStep3RevisedHypothesis(r3Hypo);
+    if (r3Lesson) {
+      setInitialStep3FailureLesson(r3Lesson);
+    }
+    if (r3Hypo) {
+      setInitialStep3RevisedHypothesis(r3Hypo);
+    }
+
     setStep4Conclusion(existing.step4_conclusion || '');
     setLastSavedTime(existing.last_updated || '');
 
@@ -526,11 +543,11 @@ export default function PortfolioEditor() {
                 <div className="font-black text-rose-800 flex items-center space-x-1.5">
                   <span>선생님이 {currentStep}단계를 [보류] 처리하였습니다.</span>
                   <span className="bg-rose-200 text-rose-900 text-[10px] px-1.5 py-0.2 rounded-md font-bold">
-                    수정 후 재요청 필요
+                    재작성 후 재요청 필요
                   </span>
                 </div>
                 <p className="text-slate-700 text-[11px] leading-relaxed">
-                  선생님의 피드백을 반영하여 내용을 수정한 후, 하단의 <strong>[교사 승인 후 다음 단계]</strong> 버튼을 눌러 다시 승인을 요청하세요.
+                  선생님의 피드백을 반영하여 내용을 재작성한 후, 하단의 <strong>[보완 내용 제출하고 재승인 요청 🚀]</strong> 버튼을 눌러 다시 승인을 요청하세요.
                 </p>
                 {curFeedback && (
                   <div className="p-2 bg-white rounded-xl border border-rose-200 text-rose-900 text-[11px] font-medium">
@@ -667,7 +684,7 @@ export default function PortfolioEditor() {
                   <MessageSquareQuote className={`w-4 h-4 ${step1Status === 'held' ? 'text-rose-600' : 'text-blue-600'}`} />
                   <span>
                     {step1Status === 'held'
-                      ? '⚠️ 선생님의 1단계 보완 요청 지도 피드백 (선생님 코멘트):'
+                      ? '⚠️ 선생님의 1단계 보완 요청 피드백 (아래 내용을 선생님의 요청사항에 따라 재작성하고 재요청하세요.):'
                       : '💬 선생님의 1단계 지도 피드백:'}
                   </span>
                 </div>
@@ -737,24 +754,55 @@ export default function PortfolioEditor() {
               </p>
             </div>
 
-            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용) */}
+            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용 - 최상단 고정 및 절대 삭제 방지) */}
             {step2Feedback && (
-              <div className={`p-3.5 rounded-2xl border-2 space-y-1.5 animate-fadeIn ${
-                step2Status === 'held' ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+              <div className={`p-4 rounded-2xl border-2 space-y-2 animate-fadeIn shadow-xs ${
+                step2Status === 'held' ? 'bg-rose-50/90 border-rose-300 text-rose-950' : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
               }`}>
-                <div className="flex items-center space-x-1.5 font-extrabold text-xs">
+                <div className="flex items-center space-x-1.5 font-black text-xs">
                   <MessageSquareQuote className={`w-4 h-4 ${step2Status === 'held' ? 'text-rose-600' : 'text-emerald-600'}`} />
-                  <span>{step2Status === 'held' ? '⚠️ 선생님의 2단계 보완 요청 피드백 (반영 후 재요청하세요):' : '💬 선생님의 2단계 지도 피드백:'}</span>
+                  <span>
+                    {step2Status === 'held'
+                      ? '⚠️ 선생님의 2단계 보완 요청 피드백 (아래 내용을 선생님의 요청사항에 따라 재작성하고 재요청하세요.):'
+                      : '💬 선생님의 2단계 지도 피드백:'}
+                  </span>
                 </div>
-                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
+                <div className="text-xs font-bold bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
                   "{step2Feedback}"
+                </div>
+              </div>
+            )}
+
+            {/* 학생의 이전 제출 실험 계획 영구 보존 카드 (보류 상태이거나 수정 중일 때 참고할 수 있도록 명확히 표시) */}
+            {initialStep2Experiment && (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 flex items-center space-x-1.5">
+                    <Quote className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>📋 내가 이전에 제출한 2단계 실험 계획 (기존 제출 기록 보존):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                    기록 보존됨
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line">
+                  {initialStep2Experiment}
                 </p>
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">
-                실험 및 관찰 과정 기록
+              <label className="text-xs font-black text-slate-700 flex items-center justify-between">
+                <span>
+                  {step2Status === 'held'
+                    ? '✏️ 선생님 피드백을 반영한 [2단계 보완 실험 및 관찰 과정] 재작성란:'
+                    : '실험 및 관찰 과정 기록'}
+                </span>
+                {step2Status === 'held' && (
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md">
+                    선생님의 조언을 반영하여 내용을 수정하거나 새로 작성하세요
+                  </span>
+                )}
               </label>
               <textarea
                 value={step2Experiment}
@@ -800,18 +848,56 @@ export default function PortfolioEditor() {
               </p>
             </div>
 
-            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용) */}
+            {/* 선생님 피드백 코멘트 카드 (보류 및 지도 내용 - 최상단 고정 및 절대 삭제 방지) */}
             {step3Feedback && (
-              <div className={`p-3.5 rounded-2xl border-2 space-y-1.5 animate-fadeIn ${
-                step3Status === 'held' ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-rose-50/60 border-rose-200 text-rose-950'
+              <div className={`p-4 rounded-2xl border-2 space-y-2 animate-fadeIn shadow-xs ${
+                step3Status === 'held' ? 'bg-rose-50/90 border-rose-300 text-rose-950' : 'bg-rose-50/60 border-rose-200 text-rose-950'
               }`}>
-                <div className="flex items-center space-x-1.5 font-extrabold text-xs">
+                <div className="flex items-center space-x-1.5 font-black text-xs">
                   <MessageSquareQuote className={`w-4 h-4 ${step3Status === 'held' ? 'text-rose-600' : 'text-purple-600'}`} />
-                  <span>{step3Status === 'held' ? '⚠️ 선생님의 3단계 보완 요청 피드백 (반영 후 재요청하세요):' : '💬 선생님의 3단계 지도 피드백:'}</span>
+                  <span>
+                    {step3Status === 'held'
+                      ? '⚠️ 선생님의 3단계 보완 요청 피드백 (아래 내용을 선생님의 요청사항에 따라 재작성하고 재요청하세요.):'
+                      : '💬 선생님의 3단계 지도 피드백:'}
+                  </span>
                 </div>
-                <p className="text-xs font-bold bg-white/90 p-2.5 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
+                <div className="text-xs font-bold bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line shadow-xs">
                   "{step3Feedback}"
-                </p>
+                </div>
+              </div>
+            )}
+
+            {/* 학생의 이전 제출 실패 분석 및 가설 수정 영구 보존 카드 (보류 상태이거나 수정 중일 때 참고할 수 있도록 명확히 표시) */}
+            {(initialStep3FailureLesson || initialStep3RevisedHypothesis) && (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 flex items-center space-x-1.5">
+                    <Quote className="w-3.5 h-3.5 text-rose-500" />
+                    <span>📋 내가 이전에 제출한 3단계 실패 분석 (기존 제출 기록 보존):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                    기록 보존됨
+                  </span>
+                </div>
+                <div className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 space-y-1.5 leading-relaxed">
+                  {initialStep3FailureLesson && (
+                    <p>
+                      <strong className="text-rose-700">• 배운 점:</strong> {initialStep3FailureLesson}
+                    </p>
+                  )}
+                  {initialStep3RevisedHypothesis && (
+                    <p>
+                      <strong className="text-amber-700">• 수정한 가설:</strong> {initialStep3RevisedHypothesis}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {step3Status === 'held' && (
+              <div className="text-[10px] font-bold text-rose-700 bg-rose-100 p-2 rounded-xl flex items-center justify-between">
+                <span>✏️ 선생님 피드백을 반영하여 아래 실패 분석과 수정 가설을 재작성해 주세요</span>
+                <span className="bg-white/80 px-2 py-0.5 rounded-md">재작성란</span>
               </div>
             )}
 
