@@ -22,6 +22,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import WeeklyScoreBanner from '../components/student/WeeklyScoreBanner';
+import StudentQnAArchiveModal from '../components/student/StudentQnAArchiveModal';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ export default function Home() {
   } = useApp();
 
   const [tab, setTab] = useState('approved'); // 'approved' | 'my' | 'all'
+  const [isQnAArchiveOpen, setIsQnAArchiveOpen] = useState(false);
 
   // 테마 색상 그라디언트 매핑
   const currentTheme = THEME_OPTIONS.find((t) => t.id === appConfig.theme_color) || THEME_OPTIONS[0];
@@ -139,9 +141,22 @@ export default function Home() {
       >
         <div className="absolute top-0 right-0 -mr-6 -mt-6 w-32 h-32 rounded-full bg-white/10 blur-xl"></div>
         <div className="relative z-10 space-y-2">
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5 text-discovery-400" />
-            <span>실패에서 배우는 과학 탐구</span>
+          <div className="flex items-center flex-wrap gap-2">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-discovery-400" />
+              <span>실패에서 배우는 과학 탐구</span>
+            </div>
+
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => setIsQnAArchiveOpen(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold text-xs shadow-sm hover:shadow-md transition active:scale-95"
+              >
+                <Compass className="w-3.5 h-3.5 text-slate-900" />
+                <span>지금까지 학생들의 질문과 답변들</span>
+              </button>
+            )}
           </div>
 
           <h2 className="text-lg sm:text-xl font-extrabold leading-snug">
@@ -567,6 +582,13 @@ export default function Home() {
           })
         )}
       </div>
+
+      {/* 지금까지 학생들의 질문과 답변들 모달 (익명 보관소) */}
+      <StudentQnAArchiveModal
+        isOpen={isQnAArchiveOpen}
+        onClose={() => setIsQnAArchiveOpen(false)}
+        questions={questions}
+      />
     </div>
   );
 }
