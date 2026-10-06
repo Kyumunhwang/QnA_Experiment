@@ -3,13 +3,13 @@
  * 교사 보안 인증, 교사 명렬표 관리, 담당 교사 황규문 확인 도장 연동
  */
 
-const STORAGE_KEY_TEACHERS = 'science_eureka_teachers';
-const STORAGE_KEY_STUDENTS = 'science_eureka_students';
-const STORAGE_KEY_QUESTIONS = 'science_eureka_questions';
-const STORAGE_KEY_PORTFOLIOS = 'science_eureka_portfolios';
-const STORAGE_KEY_CONFIG = 'science_eureka_config';
-const STORAGE_KEY_MANUAL_SCORES = 'science_eureka_manual_scores';
-const STORAGE_KEY_API_URL = 'science_eureka_gas_api_url';
+export const STORAGE_KEY_TEACHERS = 'science_eureka_teachers';
+export const STORAGE_KEY_STUDENTS = 'science_eureka_students';
+export const STORAGE_KEY_QUESTIONS = 'science_eureka_questions';
+export const STORAGE_KEY_PORTFOLIOS = 'science_eureka_portfolios';
+export const STORAGE_KEY_CONFIG = 'science_eureka_config';
+export const STORAGE_KEY_MANUAL_SCORES = 'science_eureka_manual_scores';
+export const STORAGE_KEY_API_URL = 'science_eureka_gas_api_url';
 
 export const DEFAULT_CLASSES = ['M6', 'M7', 'M8', 'H9', 'H10', 'H11', 'H12'];
 
@@ -141,7 +141,7 @@ const INITIAL_MOCK_PORTFOLIOS = [
   }
 ];
 
-function getLocal(key, defaultVal) {
+export function getLocal(key, defaultVal) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : defaultVal;
@@ -150,7 +150,7 @@ function getLocal(key, defaultVal) {
   }
 }
 
-function setLocal(key, val) {
+export function setLocal(key, val) {
   try {
     localStorage.setItem(key, JSON.stringify(val));
   } catch (e) {
@@ -332,30 +332,54 @@ export async function deleteTeacher(teacherId) {
    학생 명렬표 (Student Roster) API
    ========================================================================== */
 
-/** 학생 명렬표 조회 */
+/** 학생 명렬표 조회 (Stale-While-Revalidate: 로컬 캐시 즉시 반환 0.01초 + 백그라운드 갱신) */
 export async function getStudents(forceNetwork = false) {
+  const localStudents = getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
+
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
-    try {
-      const cacheBuster = forceNetwork ? `&_t=${Date.now()}` : '';
-      const res = await fetch(`${apiUrl}?action=getStudents${cacheBuster}`);
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setLocal(STORAGE_KEY_STUDENTS, json.data);
-        return { students: json.data, classes: json.classes || DEFAULT_CLASSES };
+    const fetchPromise = (async () => {
+      try {
+        const cacheBuster = forceNetwork ? `&_t=${Date.now()}` : '';
+        const res = await fetch(`${apiUrl}?action=getStudents${cacheBuster}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setLocal(STORAGE_KEY_STUDENTS, json.data);
+          return { students: json.data, classes: json.classes || DEFAULT_CLASSES };
+        }
+      } catch (err) {
+        console.warn('GAS getStudents failed, falling back to local storage:', err);
       }
-    } catch (err) {
-      console.warn('GAS getStudents failed, falling back to local storage:', err);
+      return null;
+    })();
+
+    // 캐시가 비어있거나 강제 네트워크 갱신 요청일 때는 네트워크를 기다림
+    if (forceNetwork || !localStudents || localStudents.length === 0) {
+      const netResult = await fetchPromise;
+      if (netResult) return netResult;
     }
   }
+
   return {
-    students: getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS),
+    students: localStudents,
     classes: DEFAULT_CLASSES,
   };
 }
 
-/** 학생 로그인 비밀번호 검증 */
+/** 학생 로그인 비밀번호 검증 (Local-First 캐시 우선 즉시 검증: 0.05초 로그인) */
 export async function verifyStudent(gradeClass, studentName, password) {
+  const list = getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
+  const found = list.find(s => s.grade_class === gradeClass && s.student_name === studentName);
+
+  // 로컬에 학생 명렬표 캐시가 있는 경우 즉각 판정 (대기시간 0초)
+  if (found) {
+    if (String(found.password) === String(password)) {
+      // 비밀번호 일치 시 즉시 성공 반환
+      return { success: true };
+    }
+  }
+
+  // 로컬 캐시에 없거나 불일치할 때(비밀번호가 다른 기기에서 방금 변경된 경우 등) GAS 원격 검증 Fallback
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
@@ -364,13 +388,19 @@ export async function verifyStudent(gradeClass, studentName, password) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'verifyStudent', grade_class: gradeClass, student_name: studentName, password }),
       });
-      return await res.json();
+      const json = await res.json();
+      if (json && json.success) {
+        // 원격에서 성공 시 로컬 캐시 갱신
+        if (found) {
+          found.password = password;
+          setLocal(STORAGE_KEY_STUDENTS, [...list]);
+        }
+      }
+      return json;
     } catch (err) {}
   }
-  const list = getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
-  const found = list.find(s => s.grade_class === gradeClass && s.student_name === studentName);
+
   if (!found) return { success: false, error: '등록되지 않은 학생입니다.' };
-  if (String(found.password) === String(password)) return { success: true };
   return { success: false, error: '비밀번호가 일치하지 않습니다.' };
 }
 
@@ -583,23 +613,35 @@ export async function promoteStudents() {
    질문 & 포트폴리오 & 홈 설정 API
    ========================================================================== */
 
-/** 질문 목록 조회 */
-export async function getQuestions() {
+/** 질문 목록 조회 (Stale-While-Revalidate: 로컬 캐시 즉각 반환 0.01초 + 백그라운드 갱신) */
+export async function getQuestions(forceNetwork = false) {
+  const localData = getLocal(STORAGE_KEY_QUESTIONS, []);
+
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
-    try {
-      const res = await fetch(`${apiUrl}?action=getQuestions`, { method: 'GET' });
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setLocal(STORAGE_KEY_QUESTIONS, json.data);
-        return json.data;
-      }
-    } catch (err) {}
+    const fetchPromise = (async () => {
+      try {
+        const res = await fetch(`${apiUrl}?action=getQuestions`, { method: 'GET' });
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setLocal(STORAGE_KEY_QUESTIONS, json.data);
+          return json.data;
+        }
+      } catch (err) {}
+      return null;
+    })();
+
+    // 캐시가 비어있거나 강제 네트워크 요청인 경우 네트워크 응답을 대기
+    if (forceNetwork || !localData || localData.length === 0) {
+      const netData = await fetchPromise;
+      if (netData) return netData;
+    }
   }
-  return getLocal(STORAGE_KEY_QUESTIONS, []);
+
+  return localData;
 }
 
-/** 질문 등록 */
+/** 질문 등록 (Optimistic Update: 로컬 즉시 반영 0.05초, GAS 백그라운드 비동기 동기화) */
 export async function addQuestion(questionData) {
   const newQuestion = {
     id: 'Q-' + Date.now(),
@@ -619,13 +661,14 @@ export async function addQuestion(questionData) {
 
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
-    try {
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'addQuestion', ...newQuestion }),
-      });
-    } catch (err) {}
+    // GAS 웹앱에는 백그라운드로 비동기 전송하여 사용자 UI 블로킹 해제
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'addQuestion', ...newQuestion }),
+    }).catch(err => {
+      console.warn('GAS addQuestion background sync failed:', err);
+    });
   }
   return newQuestion;
 }
@@ -709,49 +752,59 @@ function normalizePortfolioRecord(p) {
   return item;
 }
 
-/** 포트폴리오 목록 조회 */
-export async function getPortfolios(studentName, questionId) {
+/** 포트폴리오 목록 조회 (Stale-While-Revalidate: 로컬 캐시 즉시 반환 0.01초 + 백그라운드 갱신) */
+export async function getPortfolios(studentName, questionId, forceNetwork = false) {
   const localList = getLocal(STORAGE_KEY_PORTFOLIOS, INITIAL_MOCK_PORTFOLIOS).map(normalizePortfolioRecord);
   let mergedList = [...localList];
 
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
-    try {
-      const query = questionId
-        ? `${apiUrl}?action=getPortfolios&question_id=${encodeURIComponent(questionId)}`
-        : `${apiUrl}?action=getPortfolios`;
-      const res = await fetch(query);
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        const gasData = json.data.map(normalizePortfolioRecord);
-        // GAS 데이터와 로컬 데이터 안전 병합 (로컬의 최신 피드백 보존)
-        gasData.forEach((gasItem) => {
-          const localIdx = mergedList.findIndex((p) => p.id === gasItem.id || (p.question_id === gasItem.question_id && matchesStudentName(p.student_name, gasItem.student_name)));
-          if (localIdx >= 0) {
-            const localItem = mergedList[localIdx];
-            mergedList[localIdx] = {
-              ...gasItem,
-              step1_status: gasItem.step1_status || localItem.step1_status || 'writing',
-              step1_feedback: gasItem.step1_feedback || localItem.step1_feedback || '',
-              step2_status: gasItem.step2_status || localItem.step2_status || 'writing',
-              step2_feedback: gasItem.step2_feedback || localItem.step2_feedback || '',
-              step3_status: gasItem.step3_status || localItem.step3_status || 'writing',
-              step3_feedback: gasItem.step3_feedback || localItem.step3_feedback || '',
-              step4_status: gasItem.step4_status || localItem.step4_status || 'writing',
-              step4_feedback: gasItem.step4_feedback || localItem.step4_feedback || '',
-              step1_research: gasItem.step1_research || localItem.step1_research || '',
-              step2_experiment: gasItem.step2_experiment || localItem.step2_experiment || '',
-              step3_failure_lesson: gasItem.step3_failure_lesson || localItem.step3_failure_lesson || '',
-              step3_revised_hypothesis: gasItem.step3_revised_hypothesis || localItem.step3_revised_hypothesis || '',
-              step4_conclusion: gasItem.step4_conclusion || localItem.step4_conclusion || '',
-            };
-          } else {
-            mergedList.push(gasItem);
-          }
-        });
-        setLocal(STORAGE_KEY_PORTFOLIOS, mergedList);
-      }
-    } catch (err) {}
+    const fetchPromise = (async () => {
+      try {
+        const query = questionId
+          ? `${apiUrl}?action=getPortfolios&question_id=${encodeURIComponent(questionId)}`
+          : `${apiUrl}?action=getPortfolios`;
+        const res = await fetch(query);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const gasData = json.data.map(normalizePortfolioRecord);
+          // GAS 데이터와 로컬 데이터 안전 병합 (로컬의 최신 피드백 보존)
+          gasData.forEach((gasItem) => {
+            const localIdx = mergedList.findIndex((p) => p.id === gasItem.id || (p.question_id === gasItem.question_id && matchesStudentName(p.student_name, gasItem.student_name)));
+            if (localIdx >= 0) {
+              const localItem = mergedList[localIdx];
+              mergedList[localIdx] = {
+                ...gasItem,
+                step1_status: gasItem.step1_status || localItem.step1_status || 'writing',
+                step1_feedback: gasItem.step1_feedback || localItem.step1_feedback || '',
+                step2_status: gasItem.step2_status || localItem.step2_status || 'writing',
+                step2_feedback: gasItem.step2_feedback || localItem.step2_feedback || '',
+                step3_status: gasItem.step3_status || localItem.step3_status || 'writing',
+                step3_feedback: gasItem.step3_feedback || localItem.step3_feedback || '',
+                step4_status: gasItem.step4_status || localItem.step4_status || 'writing',
+                step4_feedback: gasItem.step4_feedback || localItem.step4_feedback || '',
+                step1_research: gasItem.step1_research || localItem.step1_research || '',
+                step2_experiment: gasItem.step2_experiment || localItem.step2_experiment || '',
+                step3_failure_lesson: gasItem.step3_failure_lesson || localItem.step3_failure_lesson || '',
+                step3_revised_hypothesis: gasItem.step3_revised_hypothesis || localItem.step3_revised_hypothesis || '',
+                step4_conclusion: gasItem.step4_conclusion || localItem.step4_conclusion || '',
+              };
+            } else {
+              mergedList.push(gasItem);
+            }
+          });
+          setLocal(STORAGE_KEY_PORTFOLIOS, mergedList);
+          return mergedList;
+        }
+      } catch (err) {}
+      return null;
+    })();
+
+    // 캐시가 비어있거나 강제 네트워크 갱신 요청일 때는 네트워크를 기다림
+    if (forceNetwork || !localList || localList.length === 0) {
+      const netResult = await fetchPromise;
+      if (netResult) mergedList = netResult;
+    }
   }
 
   return mergedList.filter(item => {

@@ -113,7 +113,7 @@ export default function AskQuestion() {
 
     setIsSubmitting(true);
     try {
-      await addQuestion({
+      const created = await addQuestion({
         grade_class: currentUser.gradeClass,
         student_name: currentUser.studentName,
         category: selectedCategory,
@@ -122,12 +122,12 @@ export default function AskQuestion() {
       });
 
       showToast('호기심 질문이 등록되었습니다! 선생님의 승인을 기다려주세요.', 'success');
-      await refreshQuestions();
+      // 비동기 백그라운드 갱신 트리거 및 즉시 메인 페이지 이동
+      refreshQuestions();
       navigate('/');
     } catch (err) {
       console.error(err);
       showToast('질문 등록 중 오류가 발생했습니다.', 'error');
-    } finally {
       setIsSubmitting(false);
     }
   };

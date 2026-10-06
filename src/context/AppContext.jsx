@@ -27,6 +27,10 @@ import {
   DEFAULT_CLASSES,
   SCIENCE_CATEGORIES,
   THEME_OPTIONS,
+  getLocal,
+  STORAGE_KEY_STUDENTS,
+  STORAGE_KEY_QUESTIONS,
+  STORAGE_KEY_PORTFOLIOS,
 } from '../services/api';
 
 const AppContext = createContext();
@@ -61,7 +65,7 @@ export function AppProvider({ children }) {
 
   const [teacherList, setTeacherList] = useState([]);
 
-  const [studentRoster, setStudentRoster] = useState([]);
+  const [studentRoster, setStudentRoster] = useState(() => getLocal(STORAGE_KEY_STUDENTS, []));
   const [classList, setClassList] = useState(DEFAULT_CLASSES);
   const [appConfig, setAppConfig] = useState({
     banner_title: '일상의 사소한 호기심이 위대한 과학 발견이 됩니다!',
@@ -77,8 +81,8 @@ export function AppProvider({ children }) {
   const [isChangePwModalOpen, setIsChangePwModalOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
 
-  const [questions, setQuestions] = useState([]);
-  const [portfolios, setPortfolios] = useState([]);
+  const [questions, setQuestions] = useState(() => getLocal(STORAGE_KEY_QUESTIONS, []));
+  const [portfolios, setPortfolios] = useState(() => getLocal(STORAGE_KEY_PORTFOLIOS, []));
   const [manualScores, setManualScores] = useState({});
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -430,11 +434,14 @@ export function AppProvider({ children }) {
     });
   };
 
-  const refreshQuestions = async () => {
-    setLoading(true);
+  const refreshQuestions = async (forceNetwork = false) => {
+    // 이미 질문 데이터가 있으면 화면을 스피너로 가리지 않고 부드럽게 백그라운드 갱신
+    if (!questions || questions.length === 0) {
+      setLoading(true);
+    }
     try {
-      const data = await getQuestions();
-      setQuestions(data);
+      const data = await getQuestions(forceNetwork);
+      if (data) setQuestions(data);
     } catch (e) {
       showToast('질문 목록 로드 실패', 'error');
     } finally {
