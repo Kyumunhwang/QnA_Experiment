@@ -585,13 +585,15 @@ export default function Home() {
       </div>
 
       {/* 지금까지 학생들의 질문과 답변들 모달 (익명 보관소) */}
-      <ErrorBoundary onReset={() => setIsQnAArchiveOpen(false)}>
-        <StudentQnAArchiveModal
-          isOpen={isQnAArchiveOpen}
-          onClose={() => setIsQnAArchiveOpen(false)}
-          questions={questions}
-        />
-      </ErrorBoundary>
+      {isQnAArchiveOpen && (
+        <ErrorBoundary onReset={() => setIsQnAArchiveOpen(false)}>
+          <StudentQnAArchiveModal
+            isOpen={isQnAArchiveOpen}
+            onClose={() => setIsQnAArchiveOpen(false)}
+            questions={questions}
+          />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }

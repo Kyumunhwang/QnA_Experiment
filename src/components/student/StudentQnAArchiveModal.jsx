@@ -17,9 +17,6 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
-  // 모달이 닫혀 있으면 렌더링하지 않음
-  if (!isOpen) return null;
-
   // 질문 안전 배열화
   const safeQuestions = Array.isArray(questions) ? questions : [];
 
@@ -118,6 +115,9 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
       return contentMatch || feedbackMatch || catMatch;
     });
   }, [rejectedQuestions, selectedCategory, searchTerm]);
+
+  // 모달이 닫혀 있으면 렌더링하지 않음 (모든 Hook 호출 이후에 안전하게 리턴)
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
