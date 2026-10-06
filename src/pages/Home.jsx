@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import WeeklyScoreBanner from '../components/student/WeeklyScoreBanner';
 import StudentQnAArchiveModal from '../components/student/StudentQnAArchiveModal';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -584,11 +585,13 @@ export default function Home() {
       </div>
 
       {/* 지금까지 학생들의 질문과 답변들 모달 (익명 보관소) */}
-      <StudentQnAArchiveModal
-        isOpen={isQnAArchiveOpen}
-        onClose={() => setIsQnAArchiveOpen(false)}
-        questions={questions}
-      />
+      <ErrorBoundary onReset={() => setIsQnAArchiveOpen(false)}>
+        <StudentQnAArchiveModal
+          isOpen={isQnAArchiveOpen}
+          onClose={() => setIsQnAArchiveOpen(false)}
+          questions={questions}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

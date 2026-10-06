@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Sparkles,
   Filter,
-  CheckCircle2,
   ExternalLink,
   ShieldCheck,
   Compass
@@ -18,41 +17,68 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
+  // 모달이 닫혀 있으면 렌더링하지 않음
   if (!isOpen) return null;
 
-  // 질문 내용 파싱 (ui_type 'B' STW 관찰형 지원)
+  // 질문 안전 배열화
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+
+  // 질문 내용 파싱 (ui_type 'B' STW 관찰형 및 JSON 문자열 완벽 방어 지원)
   const parseQuestionContent = (q) => {
-    if (q.ui_type === 'B') {
-      try {
-        const obj = typeof q.content === 'string' ? JSON.parse(q.content) : q.content;
+    if (!q) return { isSTW: false, text: '' };
+
+    try {
+      let obj = q.content;
+      if (typeof obj === 'string') {
+        const trimmed = obj.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          obj = JSON.parse(trimmed);
+        }
+      }
+
+      if (
+        obj &&
+        typeof obj === 'object' &&
+        (obj.see !== undefined || obj.think !== undefined || obj.wonder !== undefined)
+      ) {
         return {
           isSTW: true,
-          see: obj.see || '',
-          think: obj.think || '',
-          wonder: obj.wonder || '',
-          imageUrl: obj.imageUrl || '',
-          linkUrl: obj.linkUrl || '',
+          see: String(obj.see || ''),
+          think: String(obj.think || ''),
+          wonder: String(obj.wonder || ''),
+          imageUrl: String(obj.imageUrl || ''),
+          linkUrl: String(obj.linkUrl || ''),
         };
-      } catch {
-        return { isSTW: false, text: q.content };
       }
+    } catch {
+      // JSON 파싱 실패 시 일반 텍스트 처리로 이동
     }
-    return { isSTW: false, text: q.content };
+
+    // 일반 텍스트이거나 파싱 불가한 경우 (객체일 경우 JSON 문자열화하여 리액트 child 에러 원천 차단)
+    const textVal =
+      typeof q.content === 'object' && q.content !== null
+        ? JSON.stringify(q.content)
+        : String(q.content || '');
+
+    return { isSTW: false, text: textVal };
   };
 
-  // '보완 요청(status: rejected)' 질문 목록 필터링 (선생님 피드백 중심)
+  // '보완 요청(status: rejected)' 질문 목록 필터링
   const rejectedQuestions = useMemo(() => {
-    return questions.filter((q) => {
-      // status가 'rejected'이거나 보완 피드백이 있는 질문
-      return q.status === 'rejected';
+    return safeQuestions.filter((q) => {
+      if (!q || typeof q !== 'object') return false;
+      const status = q.status || (q.is_selected ? 'approved' : 'pending');
+      return status === 'rejected';
     });
-  }, [questions]);
+  }, [safeQuestions]);
 
   // 카테고리 목록 추출
   const categories = useMemo(() => {
     const set = new Set();
     rejectedQuestions.forEach((q) => {
-      if (q.category) set.add(q.category);
+      if (q && q.category && typeof q.category === 'string') {
+        set.add(q.category);
+      }
     });
     return ['ALL', ...Array.from(set)];
   }, [rejectedQuestions]);
@@ -60,30 +86,34 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
   // 검색 및 카테고리 필터링
   const filteredList = useMemo(() => {
     return rejectedQuestions.filter((q) => {
+      if (!q) return false;
+
       // 카테고리 필터
       if (selectedCategory !== 'ALL' && q.category !== selectedCategory) {
         return false;
       }
 
       // 검색어 필터
-      if (!searchTerm.trim()) return true;
+      const trimmedSearch = String(searchTerm || '').trim().toLowerCase();
+      if (!trimmedSearch) return true;
 
-      const lower = searchTerm.toLowerCase();
       const parsed = parseQuestionContent(q);
 
       let contentMatch = false;
       if (parsed.isSTW) {
         contentMatch =
-          (parsed.see && parsed.see.toLowerCase().includes(lower)) ||
-          (parsed.think && parsed.think.toLowerCase().includes(lower)) ||
-          (parsed.wonder && parsed.wonder.toLowerCase().includes(lower));
+          String(parsed.see || '').toLowerCase().includes(trimmedSearch) ||
+          String(parsed.think || '').toLowerCase().includes(trimmedSearch) ||
+          String(parsed.wonder || '').toLowerCase().includes(trimmedSearch);
       } else {
-        contentMatch = parsed.text && parsed.text.toLowerCase().includes(lower);
+        contentMatch = String(parsed.text || '').toLowerCase().includes(trimmedSearch);
       }
 
       const feedbackMatch =
-        q.teacher_feedback && q.teacher_feedback.toLowerCase().includes(lower);
-      const catMatch = q.category && q.category.toLowerCase().includes(lower);
+        q.teacher_feedback &&
+        String(q.teacher_feedback).toLowerCase().includes(trimmedSearch);
+      const catMatch =
+        q.category && String(q.category).toLowerCase().includes(trimmedSearch);
 
       return contentMatch || feedbackMatch || catMatch;
     });
@@ -92,15 +122,15 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
       <div
-        className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp"
+        className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-fadeIn"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 모달 상단 헤더 */}
-        <div className="p-4 sm:p-6 bg-gradient-to-r from-discovery-600 via-eureka-600 to-indigo-600 text-white shrink-0 relative">
+        <div className="p-4 sm:p-6 bg-gradient-to-r from-teal-600 via-eureka-600 to-indigo-600 text-white shrink-0 relative">
           <div className="flex items-start justify-between">
             <div className="space-y-1 pr-6">
               <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-[11px] font-bold backdrop-blur-sm">
-                <Compass className="w-3.5 h-3.5 text-discovery-200" />
+                <Compass className="w-3.5 h-3.5 text-amber-300" />
                 <span>탐구 질문 길라잡이</span>
               </div>
               <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">
@@ -112,6 +142,7 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
             </div>
 
             <button
+              type="button"
               onClick={onClose}
               className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition active:scale-95 shrink-0"
               aria-label="닫기"
@@ -137,10 +168,11 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="질문 키워드나 선생님의 피드백 내용 검색..."
-              className="w-full pl-10 pr-4 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-eureka-500 transition shadow-xs"
+              className="w-full pl-10 pr-4 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-eureka-500 transition shadow-sm"
             />
             {searchTerm && (
               <button
+                type="button"
                 onClick={() => setSearchTerm('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
               >
@@ -159,10 +191,11 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
               {categories.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${
                     selectedCategory === cat
-                      ? 'bg-eureka-600 text-white shadow-xs'
+                      ? 'bg-eureka-600 text-white shadow-sm'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -194,8 +227,8 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
               const parsed = parseQuestionContent(q);
               return (
                 <div
-                  key={q.id || idx}
-                  className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:shadow-md transition space-y-3.5"
+                  key={q.id || `idx-${idx}`}
+                  className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm hover:shadow-md transition space-y-3.5"
                 >
                   {/* 상단 메타 헤더 (학생 이름/학년 철저히 배제) */}
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
@@ -205,11 +238,11 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
                       </span>
                       {q.category && (
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                          {q.category}
+                          {String(q.category)}
                         </span>
                       )}
                       <span className="text-[10px] font-semibold text-slate-400">
-                        {q.ui_type === 'B' ? '관찰형(STW)' : '한 줄 질문'}
+                        {parsed.isSTW ? '관찰형(STW)' : '한 줄 질문'}
                       </span>
                     </div>
 
@@ -267,20 +300,22 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
                       )}
                     </div>
                   ) : (
-                    <div className="text-xs sm:text-sm text-slate-800 font-medium bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 leading-relaxed">
+                    <div className="text-xs sm:text-sm text-slate-800 font-medium bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 leading-relaxed whitespace-pre-wrap">
                       {parsed.text}
                     </div>
                   )}
 
                   {/* 선생님의 보완 피드백 (하이라이트 카드) */}
                   {q.teacher_feedback ? (
-                    <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                    <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-3.5 space-y-1.5 shadow-sm">
                       <div className="flex items-center space-x-1.5 text-amber-900 font-extrabold text-xs">
                         <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         <span>선생님의 보완 피드백 & 질문 발전 가이드</span>
                       </div>
                       <p className="text-xs text-amber-950/90 leading-relaxed whitespace-pre-wrap pl-5 font-normal">
-                        {q.teacher_feedback}
+                        {typeof q.teacher_feedback === 'string'
+                          ? q.teacher_feedback
+                          : JSON.stringify(q.teacher_feedback)}
                       </p>
                     </div>
                   ) : (
@@ -301,8 +336,9 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
             보완 사례 총 <strong className="text-eureka-600 font-bold">{filteredList.length}</strong>건 표시 중
           </span>
           <button
+            type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition active:scale-95 shadow-sm"
           >
             닫기
           </button>

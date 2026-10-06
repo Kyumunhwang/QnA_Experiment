@@ -7,6 +7,7 @@ import Toast from './components/common/Toast';
 import LoginModal from './components/auth/LoginModal';
 import ChangePasswordModal from './components/auth/ChangePasswordModal';
 import ManualModal from './components/common/ManualModal';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // 학생용 페이지
 import Home from './pages/Home';
@@ -87,10 +88,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
