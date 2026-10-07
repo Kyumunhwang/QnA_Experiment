@@ -33,7 +33,7 @@ export default function TeacherQuestions() {
     const status = q.status || (q.is_selected ? 'approved' : 'pending');
     if (activeTab === 'pending') return status === 'pending';
     if (activeTab === 'approved') return status === 'approved';
-    if (activeTab === 'rejected') return status === 'rejected';
+    if (activeTab === 'rejected') return status === 'rejected' || status === 'rejected_no_score';
     return true;
   });
 
@@ -76,7 +76,7 @@ export default function TeacherQuestions() {
 
   const pendingCount = questions.filter((q) => (q.status || (q.is_selected ? 'approved' : 'pending')) === 'pending').length;
   const approvedCount = questions.filter((q) => (q.status || (q.is_selected ? 'approved' : 'pending')) === 'approved').length;
-  const rejectedCount = questions.filter((q) => q.status === 'rejected').length;
+  const rejectedCount = questions.filter((q) => q.status === 'rejected' || q.status === 'rejected_no_score').length;
 
   return (
     <div className="space-y-4 pb-16 animate-fadeIn">
@@ -130,7 +130,7 @@ export default function TeacherQuestions() {
           }`}
         >
           <XCircle className="w-3.5 h-3.5" />
-          <span>보완 요청 ({rejectedCount})</span>
+          <span>반려/보완 ({rejectedCount})</span>
         </button>
 
         <button
@@ -185,8 +185,14 @@ export default function TeacherQuestions() {
                     )}
                     {status === 'rejected' && (
                       <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 flex items-center gap-0.5">
-                        <XCircle className="w-3 h-3 text-rose-600" />
+                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
                         <span>보완 요청</span>
+                      </span>
+                    )}
+                    {status === 'rejected_no_score' && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 flex items-center gap-0.5">
+                        <XCircle className="w-3.5 h-3.5 text-slate-500" />
+                        <span>점수없이 반려</span>
                       </span>
                     )}
 
@@ -277,15 +283,30 @@ export default function TeacherQuestions() {
                     className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-eureka-500 resize-none font-medium leading-relaxed"
                   />
 
-                  {/* 승인 / 보완 요청 액션 버튼 */}
-                  <div className="flex items-center justify-end space-x-2 pt-1">
+                  {/* 승인 / 보완 요청 / 점수없이(반려) 액션 버튼 */}
+                  <div className="flex items-center justify-end flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => handleStatusUpdate(q, 'rejected_no_score')}
+                      title="중복 질문 등에 점수 부여 없이 교사 답변 및 피드백만 전달합니다."
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 ${
+                        status === 'rejected_no_score'
+                          ? 'bg-slate-200 text-slate-900 border border-slate-400 shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <XCircle className="w-3.5 h-3.5 text-slate-500" />
+                      <span>점수없이(반려)</span>
+                    </button>
+
                     <button
                       type="button"
                       disabled={isProcessing}
                       onClick={() => handleStatusUpdate(q, 'rejected')}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 ${
                         status === 'rejected'
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300 shadow-xs'
                           : 'bg-rose-50 hover:bg-rose-100 text-rose-700'
                       }`}
                     >

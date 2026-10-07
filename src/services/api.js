@@ -50,62 +50,8 @@ const INITIAL_MOCK_TEACHERS = [
 // 초기 더미 학생 목록 제거 (구글 시트 100명 로스터 연동 사용)
 const INITIAL_MOCK_STUDENTS = [];
 
-const INITIAL_MOCK_QUESTIONS = [
-  {
-    id: 'Q-SAMPLE-01',
-    grade_class: 'M6',
-    student_name: '김우주',
-    category: '물리 ⚡',
-    ui_type: 'A',
-    content: '왜 얼음은 물에 뜰까? 다른 물질들은 고체가 되면 가라앉는데 물만 반대인 이유가 뭘까?',
-    created_at: '2026-09-21 14:20:00',
-    is_selected: true,
-    status: 'approved',
-    teacher_feedback: '밀도와 물 분자 수소결합의 구조를 잘 연결해보면 훌륭한 탐구가 될 거야!',
-  },
-  {
-    id: 'Q-SAMPLE-02',
-    grade_class: 'M6',
-    student_name: '이지구',
-    category: '생명과학 🌱',
-    ui_type: 'B',
-    content: JSON.stringify({
-      imageUrl: '',
-      linkUrl: 'https://ko.wikipedia.org/wiki/%EB%B0%94%EB%82%98%EB%82%98',
-      see: '바나나 껍질에 검은색 반점(슈가스팟)이 점점 많아지고 물렁해졌다.',
-      think: '바나나가 스스로 에너지를 내거나 공기 중 무언가와 반응해서 색이 변하는 것 같다.',
-      wonder: '바나나를 냉장고에 넣으면 왜 껍질이 더 빨리 까매질까? 온도가 낮으면 반응이 느려져야 하지 않나?'
-    }),
-    created_at: '2026-09-22 09:15:00',
-    is_selected: true,
-    status: 'approved',
-    teacher_feedback: 'See-Think-Wonder 루틴을 훌륭하게 수행했네! 저온 장애(냉해) 현상을 관찰해보자.',
-  },
-  {
-    id: 'Q-SAMPLE-03',
-    grade_class: 'M6',
-    student_name: '박하늘',
-    category: '화학 🧪',
-    ui_type: 'A',
-    content: '비가 오기 직전에 나는 특유의 흙냄새는 왜 나는 걸까?',
-    created_at: '2026-09-22 16:40:00',
-    is_selected: false,
-    status: 'pending',
-    teacher_feedback: '',
-  },
-  {
-    id: 'Q-SAMPLE-04',
-    grade_class: 'M7',
-    student_name: '최별이',
-    category: '일상/융합 💡',
-    ui_type: 'A',
-    content: '달걀을 삶을 때 식초나 소금을 넣으면 정말 껍질이 잘 벗겨질까?',
-    created_at: '2026-09-23 10:00:00',
-    is_selected: false,
-    status: 'rejected',
-    teacher_feedback: '궁금증은 좋으나, 달걀 껍질의 주성분인 탄산칼슘과 식초(아세트산)의 화학 반응 관점에서 가설을 한 번 더 보완해보렴!',
-  }
-];
+// 초기 더미 질문 목록 완전 제거 (실제 학생 질문만 사용)
+const INITIAL_MOCK_QUESTIONS = [];
 
 const INITIAL_MOCK_PORTFOLIOS = [
   {
@@ -123,21 +69,6 @@ const INITIAL_MOCK_PORTFOLIOS = [
     last_updated: '2026-10-03 20:00:00',
     is_reviewed: false,
     teacher_comment: ''
-  },
-  {
-    id: 'PF-SAMPLE-01',
-    question_id: 'Q-SAMPLE-02',
-    student_name: '이지구',
-    grade_class: 'M6',
-    step1_research: '나의 생각: 온도가 낮아지면 반응이 둔해져 덜 익을 것이다.\n친구 의견: 냉장고 속 습도 때문일 것 같다.\n사전조사: 바나나는 열대 과일이라 저온 장애를 겪는다고 함.',
-    step2_experiment: '1. 실온(22도)과 냉장고(4도)에 바나나를 각각 보관함.\n2. 24시간 간격으로 껍질 사진 촬영 및 단단함 측정.\n참고 링크: https://ko.wikipedia.org/wiki/바나나',
-    step3_failure_lesson: '냉장고 바나나 껍질이 실온보다 훨씬 빨리 까맣게 변했다! 추우면 무조건 안 익는다는 가설이 틀렸음을 배웠다.',
-    step3_revised_hypothesis: '껍질은 냉해로 까매졌지만 속살은 실제로 덜 익었을 것이다. 당도계를 사용해 2차 실험을 계획함.',
-    step4_conclusion: '바나나 최적 보관 온도는 13~16도이며, 냉장 시 껍질 효소 산화로 갈변은 빠르나 속살 성숙은 늦춰진다.',
-    last_updated: '2026-09-23 11:30:00',
-    is_reviewed: true,
-    teacher_comment: '실패를 통해 저온 장애라는 깊이 있는 생명과학 원리를 스스로 깨달은 모범적인 탐구 포트폴리오입니다. 아주 훌륭합니다! 💮',
-    reviewed_by: '황규문'
   }
 ];
 
@@ -161,11 +92,33 @@ export function setLocal(key, val) {
 // 기본 구글 시트 웹앱 배포 URL (Fallback)
 export const DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxwvo6yoNchzD7xD3-hjKZqauDf1AKAzEAxsJbK44xiJ9McVHz1ixtHFnrjV-6-dnKqGw/exec';
 
-// 기존에 저장된 더미 학생(김우주 등)이 있으면 로컬스토리지 정리하여 시트 데이터로 덮어쓰도록 유도
+// 기존에 저장된 더미 학생(김우주 등) 및 더미 질문(Q-SAMPLE-01~04, 박하늘 등) 로컬스토리지 정리
 try {
   const existingStudents = localStorage.getItem(STORAGE_KEY_STUDENTS);
   if (existingStudents && existingStudents.includes('김우주')) {
     localStorage.removeItem(STORAGE_KEY_STUDENTS);
+  }
+
+  const existingQuestions = localStorage.getItem(STORAGE_KEY_QUESTIONS);
+  if (existingQuestions && (existingQuestions.includes('Q-SAMPLE-') || existingQuestions.includes('박하늘') || existingQuestions.includes('김우주'))) {
+    try {
+      const qList = JSON.parse(existingQuestions);
+      if (Array.isArray(qList)) {
+        // 실제 학생 질문만 남기고 Q-SAMPLE 더미 질문 및 가상 학생 질문 필터링
+        const filtered = qList.filter(q => 
+          !String(q.id).startsWith('Q-SAMPLE-') && 
+          q.student_name !== '박하늘' && 
+          q.student_name !== '김우주' && 
+          q.student_name !== '이지구' && 
+          q.student_name !== '최별이'
+        );
+        setLocal(STORAGE_KEY_QUESTIONS, filtered);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_QUESTIONS);
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY_QUESTIONS);
+    }
   }
 } catch (e) {}
 

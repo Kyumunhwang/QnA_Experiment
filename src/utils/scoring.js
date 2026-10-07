@@ -163,16 +163,23 @@ export function calculateStudentWeeklyScore({
 
   const questionCount = weekQuestions.length;
 
-  // 2. 질문 상태별 분류 (승인, 반려, 검토 대기)
+  // 2. 질문 상태별 분류 (승인, 보완 요청(반려), 점수없이(반려), 검토 대기)
   const approvedQuestions = weekQuestions.filter(
     (q) => q.status === 'approved' || Boolean(q.is_selected)
   );
   const isApproved = approvedQuestions.length > 0;
 
+  // 일반 보완 요청(반려) - 점수 부여 대상 (80~89점)
   const rejectedQuestions = weekQuestions.filter(
     (q) => q.status === 'rejected'
   );
   const rejectedCount = rejectedQuestions.length;
+
+  // 점수없이(반려) - 중복 질문 등으로 교사 답변/피드백만 제공하고 점수는 부여하지 않음 (0점 처리)
+  const rejectedNoScoreQuestions = weekQuestions.filter(
+    (q) => q.status === 'rejected_no_score'
+  );
+  const rejectedNoScoreCount = rejectedNoScoreQuestions.length;
 
   const pendingQuestions = weekQuestions.filter(
     (q) => q.status === 'pending' || (!q.status && !q.is_selected)
@@ -235,8 +242,14 @@ export function calculateStudentWeeklyScore({
     status = 'NONE';
     lightType = 'warning';
     message = '이번 주 아직 등록된 호기심 질문이 없습니다. 질문을 등록하고 탐구를 시작해 보세요!';
+  } else if (!isApproved && rejectedCount === 0 && rejectedNoScoreCount > 0 && pendingCount === 0) {
+    // [0점] 승인 또는 일반 반려 없이 '점수없이(반려)'만 있는 경우: 점수 미부여(0점) 및 교사 코멘트 안내
+    systemScore = 0;
+    status = 'NONE';
+    lightType = 'warning';
+    message = '선생님의 피드백(점수 미부여 반려)이 등록되었습니다. 중복 질문이 아닌 새로운 호기심 질문을 다시 등록해 보세요!';
   } else if (!isApproved && rejectedCount === 0) {
-    // [0점] 질문은 등록했으나, 선생님이 아직 승인이나 반려(피드백)를 하지 않은 검토 대기 상태
+    // [0점] 질문은 등록했으나, 선생님이 아직 승인이나 일반 반려(피드백)를 하지 않은 검토 대기 상태
     // ※ 선생님이 검토(반려 또는 승인)를 하기 전에는 점수가 부여되지 않음
     systemScore = 0;
     status = 'PENDING_REVIEW';

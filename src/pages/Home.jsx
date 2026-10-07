@@ -414,6 +414,12 @@ export default function Home() {
                         <span>보완 요청</span>
                       </span>
                     )}
+                    {status === 'rejected_no_score' && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 flex items-center gap-0.5">
+                        <XCircle className="w-3 h-3 text-slate-500" />
+                        <span>점수없이 반려</span>
+                      </span>
+                    )}
 
                     {isMyQuestion && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">

@@ -298,7 +298,14 @@ export function AppProvider({ children }) {
     try {
       await updateQuestionStatus(questionId, status, feedback);
       await refreshQuestions();
-      const statusText = status === 'approved' ? '승인' : status === 'rejected' ? '보완 요청(반려)' : '대기';
+      const statusText =
+        status === 'approved'
+          ? '승인'
+          : status === 'rejected'
+          ? '보완 요청(반려)'
+          : status === 'rejected_no_score'
+          ? '점수없이(반려)'
+          : '대기';
       showToast(`질문이 [${statusText}] 상태로 변경되었으며 피드백이 저장되었습니다!`, 'success');
       return { success: true };
     } catch (e) {
