@@ -60,12 +60,12 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
     return { isSTW: false, text: textVal };
   };
 
-  // '보완 요청(status: rejected)' 및 '점수없이 반려(rejected_no_score)' 피드백 질문 목록 필터링
+  // '보완 요청(status: rejected)', '점수없이 반려(rejected_no_score)', '단순 질문 평가(rejected_type_a)' 피드백 질문 목록 필터링
   const rejectedQuestions = useMemo(() => {
     return safeQuestions.filter((q) => {
       if (!q || typeof q !== 'object') return false;
       const status = q.status || (q.is_selected ? 'approved' : 'pending');
-      return status === 'rejected' || status === 'rejected_no_score';
+      return status === 'rejected' || status === 'rejected_no_score' || status === 'rejected_type_a';
     });
   }, [safeQuestions]);
 

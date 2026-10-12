@@ -303,6 +303,8 @@ export function AppProvider({ children }) {
           ? '승인'
           : status === 'rejected'
           ? '보완 요청(반려)'
+          : status === 'rejected_type_a'
+          ? '단순 질문 평가(Type A 기준)'
           : status === 'rejected_no_score'
           ? '점수없이(반려)'
           : '대기';

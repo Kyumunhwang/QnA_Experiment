@@ -33,7 +33,7 @@ export default function TeacherQuestions() {
     const status = q.status || (q.is_selected ? 'approved' : 'pending');
     if (activeTab === 'pending') return status === 'pending';
     if (activeTab === 'approved') return status === 'approved';
-    if (activeTab === 'rejected') return status === 'rejected' || status === 'rejected_no_score';
+    if (activeTab === 'rejected') return status === 'rejected' || status === 'rejected_no_score' || status === 'rejected_type_a';
     return true;
   });
 
@@ -76,7 +76,7 @@ export default function TeacherQuestions() {
 
   const pendingCount = questions.filter((q) => (q.status || (q.is_selected ? 'approved' : 'pending')) === 'pending').length;
   const approvedCount = questions.filter((q) => (q.status || (q.is_selected ? 'approved' : 'pending')) === 'approved').length;
-  const rejectedCount = questions.filter((q) => q.status === 'rejected' || q.status === 'rejected_no_score').length;
+  const rejectedCount = questions.filter((q) => q.status === 'rejected' || q.status === 'rejected_no_score' || q.status === 'rejected_type_a').length;
 
   return (
     <div className="space-y-4 pb-16 animate-fadeIn">
@@ -187,6 +187,12 @@ export default function TeacherQuestions() {
                       <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 flex items-center gap-0.5">
                         <XCircle className="w-3.5 h-3.5 text-rose-600" />
                         <span>보완 요청</span>
+                      </span>
+                    )}
+                    {status === 'rejected_type_a' && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-0.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                        <span>단순 질문 (Type A 평가)</span>
                       </span>
                     )}
                     {status === 'rejected_no_score' && (
@@ -313,6 +319,23 @@ export default function TeacherQuestions() {
                       <XCircle className="w-3.5 h-3.5" />
                       <span>보완 요청(반려)</span>
                     </button>
+
+                    {q.ui_type === 'B' && (
+                      <button
+                        type="button"
+                        disabled={isProcessing}
+                        onClick={() => handleStatusUpdate(q, 'rejected_type_a')}
+                        title="학생이 Type B(관찰형 STW)로 작성했으나 단순 질문인 경우, Type A 기준 점수(기본 80점)로 평가하고 보완 피드백을 전달합니다."
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 ${
+                          status === 'rejected_type_a'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
+                            : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                        <span>단순질문(Type A 평가)</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"

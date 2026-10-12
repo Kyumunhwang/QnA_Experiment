@@ -1,11 +1,22 @@
 /**
  * 사고실험 & PBL 탐구 일지 주간 점수 평가 엔진 (Weekly Scoring Engine)
  * 
- * [평가 기준]
+ * [평가 기준 - 2026-W42(이번 주차)부터 적용되는 신규 질문 유형별 점수 체계]
  * - 질문 0건: 0점 (경고등: 질문 유도)
- * - 질문 등록 (반려 포함): 기본 80점
- * - 추가 질문 1건 (총 2건): 85점
- * - 이후 추가 질문 1건당 +1점 (최대 89점)
+ * - 질문 등록 후 교사 검토 대기 중: 0점 (검토 대기 상태)
+ * - 점수없이(반려): 0점 (중복 질문 등 피드백만 제공)
+ * 
+ * [Type B (관찰형 STW: See-Think-Wonder) 점수 체계]
+ * - Type B 질문 교사 검토(반려/피드백): 기본 85점
+ * - 추가 Type B 질문: 건당 +2점 (2건: 87점, 3건: 89점, 최대 89점 상한 - 90점을 넘을 수 없음)
+ * 
+ * [Type A (한 줄 질문) 및 단순 질문(Type B 다운그레이드) 점수 체계]
+ * - Type A 질문 교사 검토(반려/피드백): 기본 80점
+ * - 추가 1건 (총 2건): 85점 (+5점)
+ * - 3건 이상: 건당 +1점 (86점, 87점, 88점, 최대 89점 상한)
+ * - *교사가 Type B 질문을 '단순 질문'으로 판정한 경우 Type A 점수 체계로 평가됨
+ * 
+ * [과제 승인 및 단계 진행 - Type 무관 공통]
  * - 교사 승인 완료 시: 기본 90점 시작
  * - 승인 후 단계 진행 시마다 +3점 (최대 99점):
  *     - Step 2 실험 진행: 93점
@@ -169,11 +180,23 @@ export function calculateStudentWeeklyScore({
   );
   const isApproved = approvedQuestions.length > 0;
 
-  // 일반 보완 요청(반려) - 점수 부여 대상 (80~89점)
-  const rejectedQuestions = weekQuestions.filter(
-    (q) => q.status === 'rejected'
+  // 신규 질문 평가 룰 적용 여부 (2026-W42 이번 주차부터 적용)
+  const isNewScoringRule = targetWeek >= '2026-W42';
+
+  // Type B (관찰형 STW) 순수 보완 요청(반려) - 85점 기본, 추가건당 +2점
+  const typeBQuestions = weekQuestions.filter(
+    (q) => q.ui_type === 'B' && q.status === 'rejected'
   );
-  const rejectedCount = rejectedQuestions.length;
+
+  // Type A (한 줄 질문) 또는 교사가 단순 질문으로 판정한 Type B 질문 - 80점 기본, 추가 1건 85점, 이후 +1점
+  const typeAQuestions = weekQuestions.filter(
+    (q) => q.status === 'rejected_type_a' || (q.ui_type !== 'B' && q.status === 'rejected')
+  );
+
+  // 전체 유효 반려 건수 (점수 산정 대상)
+  const rejectedCount = isNewScoringRule
+    ? typeBQuestions.length + typeAQuestions.length
+    : weekQuestions.filter((q) => q.status === 'rejected' || q.status === 'rejected_type_a').length;
 
   // 점수없이(반려) - 중복 질문 등으로 교사 답변/피드백만 제공하고 점수는 부여하지 않음 (0점 처리)
   const rejectedNoScoreQuestions = weekQuestions.filter(
@@ -260,25 +283,71 @@ export function calculateStudentWeeklyScore({
     status = 'ENCOURAGE';
     lightType = 'encourage';
 
-    if (rejectedCount === 1) {
-      systemScore = 80;
-      breakdown.baseQuestions = 80;
-    } else if (rejectedCount === 2) {
-      systemScore = 85;
-      breakdown.baseQuestions = 80;
-      breakdown.bonusQuestions = 5;
-    } else {
-      // 3건 이상 반려/피드백 검토 완료: 85 + (rejectedCount - 2), 최대 89점
-      const bonus = Math.min(4, rejectedCount - 2);
-      systemScore = 85 + bonus;
-      breakdown.baseQuestions = 80;
-      breakdown.bonusQuestions = 5 + bonus;
-    }
+    if (isNewScoringRule) {
+      // 2026-W42부터: Type B(관찰형 STW) 및 단순질문(Type A) 차등 점수 체계
+      if (typeBQuestions.length > 0) {
+        // Type B 질문이 1건 이상 포함된 경우: 기본 85점 시작
+        systemScore = 85;
+        breakdown.baseQuestions = 85;
 
-    if (pendingCount > 0) {
-      message = `선생님 검토 완료 질문 ${rejectedCount}건(반려)으로 ${systemScore}점이 부여되었습니다. 추가 제출된 질문(${pendingCount}건) 검토 완료 시 추가 점수가 반영됩니다!`;
+        // 추가 Type B 질문은 건당 +2점, 추가 Type A 질문은 건당 +1점 합산
+        const extraTypeB = typeBQuestions.length - 1;
+        const extraTypeA = typeAQuestions.length;
+        const rawBonus = (extraTypeB * 2) + extraTypeA;
+        const bonus = Math.min(4, rawBonus); // 85 + 4 = 최대 89점 상한 (90점을 넘을 수 없음)
+
+        systemScore = 85 + bonus;
+        breakdown.bonusQuestions = bonus;
+
+        if (pendingCount > 0) {
+          message = `선생님 검토 완료 질문 ${rejectedCount}건(관찰형 Type B 피드백 85점 + 가산점)으로 ${systemScore}점이 부여되었습니다. 추가 제출된 질문(${pendingCount}건) 검토 완료 시 추가 점수가 반영됩니다!`;
+        } else {
+          message = `선생님의 관찰형(Type B) 질문 피드백이 완료되어 ${systemScore}점이 부여되었습니다. (기본 85점, 추가 질문 건당 +2점 가산) 피드백을 확인하고 과제 승인에 도전해 보세요!`;
+        }
+      } else {
+        // Type B 없이 순수 Type A(또는 교사가 단순질문으로 판정한 질문)만 있는 경우: 기본 80점 시작
+        if (typeAQuestions.length === 1) {
+          systemScore = 80;
+          breakdown.baseQuestions = 80;
+        } else if (typeAQuestions.length === 2) {
+          systemScore = 85;
+          breakdown.baseQuestions = 80;
+          breakdown.bonusQuestions = 5;
+        } else {
+          // 3건 이상: 85 + (typeAQuestions.length - 2), 최대 89점
+          const bonus = Math.min(4, typeAQuestions.length - 2);
+          systemScore = 85 + bonus;
+          breakdown.baseQuestions = 80;
+          breakdown.bonusQuestions = 5 + bonus;
+        }
+
+        if (pendingCount > 0) {
+          message = `선생님 검토 완료 질문 ${rejectedCount}건(Type A 피드백)으로 ${systemScore}점이 부여되었습니다. 추가 제출된 질문(${pendingCount}건) 검토 완료 시 추가 점수가 반영됩니다!`;
+        } else {
+          message = `선생님의 보완 피드백(Type A 기준)이 완료되어 ${systemScore}점이 부여되었습니다. 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요!`;
+        }
+      }
     } else {
-      message = `선생님의 보완 피드백(반려)이 완료되어 ${systemScore}점이 부여되었습니다. 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요!`;
+      // 레거시 과거 주차 점수 보존 로직
+      if (rejectedCount === 1) {
+        systemScore = 80;
+        breakdown.baseQuestions = 80;
+      } else if (rejectedCount === 2) {
+        systemScore = 85;
+        breakdown.baseQuestions = 80;
+        breakdown.bonusQuestions = 5;
+      } else {
+        const bonus = Math.min(4, rejectedCount - 2);
+        systemScore = 85 + bonus;
+        breakdown.baseQuestions = 80;
+        breakdown.bonusQuestions = 5 + bonus;
+      }
+
+      if (pendingCount > 0) {
+        message = `선생님 검토 완료 질문 ${rejectedCount}건(반려)으로 ${systemScore}점이 부여되었습니다. 추가 제출된 질문(${pendingCount}건) 검토 완료 시 추가 점수가 반영됩니다!`;
+      } else {
+        message = `선생님의 보완 피드백(반려)이 완료되어 ${systemScore}점이 부여되었습니다. 피드백을 확인하고 추가 질문이나 보완을 통해 승인에 도전해 보세요!`;
+      }
     }
   } else {
     // [90점 ~ 100점] 선생님의 질문 승인 완료 (기본 90점)
