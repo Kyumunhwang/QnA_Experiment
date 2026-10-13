@@ -67,10 +67,23 @@ export default function Home() {
     ? questions.filter((q) => q.student_name === currentUser.studentName)
     : [];
 
+  // 최근에 기록된 질문이 맨 위, 처음에 기록된 질문이 맨 아래로 오도록 최신순 정렬
+  const sortByLatest = (list) => {
+    return [...list].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+        return String(b.created_at).localeCompare(String(a.created_at));
+      }
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
+  };
+
   const getDisplayQuestions = () => {
-    if (tab === 'approved') return approvedQuestions;
-    if (tab === 'my') return myQuestions;
-    return feedQuestions;
+    if (tab === 'approved') return sortByLatest(approvedQuestions);
+    if (tab === 'my') return sortByLatest(myQuestions);
+    return sortByLatest(feedQuestions);
   };
 
   const displayQuestions = getDisplayQuestions();

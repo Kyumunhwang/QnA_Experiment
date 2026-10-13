@@ -28,14 +28,24 @@ export default function TeacherQuestions() {
   const [feedbackInputs, setFeedbackInputs] = useState({});
   const [isProcessingId, setIsProcessingId] = useState(null);
 
-  // 탭 필터링
-  const filteredQuestions = questions.filter((q) => {
-    const status = q.status || (q.is_selected ? 'approved' : 'pending');
-    if (activeTab === 'pending') return status === 'pending';
-    if (activeTab === 'approved') return status === 'approved';
-    if (activeTab === 'rejected') return status === 'rejected' || status === 'rejected_no_score' || status === 'rejected_type_a';
-    return true;
-  });
+  // 탭 필터링 및 최신순 정렬 (최근에 등록된 질문이 맨 위, 처음에 등록된 질문이 맨 아래)
+  const filteredQuestions = questions
+    .filter((q) => {
+      const status = q.status || (q.is_selected ? 'approved' : 'pending');
+      if (activeTab === 'pending') return status === 'pending';
+      if (activeTab === 'approved') return status === 'approved';
+      if (activeTab === 'rejected') return status === 'rejected' || status === 'rejected_no_score' || status === 'rejected_type_a';
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+        return String(b.created_at).localeCompare(String(a.created_at));
+      }
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
 
   const parseQuestionContent = (q) => {
     if (q.ui_type === 'B') {

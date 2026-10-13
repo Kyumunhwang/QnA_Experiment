@@ -60,12 +60,23 @@ export default function StudentQnAArchiveModal({ isOpen, onClose, questions = []
     return { isSTW: false, text: textVal };
   };
 
-  // '보완 요청(status: rejected)', '점수없이 반려(rejected_no_score)', '단순 질문 평가(rejected_type_a)' 피드백 질문 목록 필터링
+  // '보완 요청(status: rejected)', '점수없이 반려(rejected_no_score)', '단순 질문 평가(rejected_type_a)' 피드백 질문 목록 필터링 및 최신순 정렬
+  // (최근에 기록된 것은 맨 위, 처음에 기록된 것은 맨 아래로 표시)
   const rejectedQuestions = useMemo(() => {
-    return safeQuestions.filter((q) => {
+    const list = safeQuestions.filter((q) => {
       if (!q || typeof q !== 'object') return false;
       const status = q.status || (q.is_selected ? 'approved' : 'pending');
       return status === 'rejected' || status === 'rejected_no_score' || status === 'rejected_type_a';
+    });
+
+    return [...list].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+        return String(b.created_at).localeCompare(String(a.created_at));
+      }
+      return String(b.id || '').localeCompare(String(a.id || ''));
     });
   }, [safeQuestions]);
 
