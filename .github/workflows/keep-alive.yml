@@ -1,0 +1,52 @@
+name: Keep Service Warm & Active
+
+on:
+  schedule:
+    # 매일 한국 시간 기준 오전 8시, 오후 2시, 오후 8시 (하루 3회 자동 핑)
+    # UTC 기준 23:00, 05:00, 11:00
+    - cron: '0 23,5,11 * * *'
+  workflow_dispatch: # GitHub 웹 UI에서 수동 즉시 실행 가능
+
+jobs:
+  ping-services:
+    name: Ping Backend & Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping Google Apps Script Backend (Warm up DB)
+        id: ping_gas
+        run: |
+          echo "Pinging Google Apps Script Backend..."
+          GAS_URL="https://script.google.com/macros/s/AKfycbxwvo6yoNchzD7xD3-hjKZqauDf1AKAzEAxsJbK44xiJ9McVHz1ixtHFnrjV-6-dnKqGw/exec?action=getConfig"
+          HTTP_STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "$GAS_URL" || echo "000")
+          echo "gas_status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          echo "GAS Backend HTTP Response Code: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Google Apps Script Backend is active and warm!"
+          else
+            echo "Warning: Received HTTP status $HTTP_STATUS"
+          fi
+
+      - name: Ping Vercel Frontend (Optional)
+        id: ping_vercel
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_APP_URL || vars.VERCEL_APP_URL }}
+        run: |
+          if [ -n "$VERCEL_URL" ]; then
+            echo "Pinging Vercel Frontend: $VERCEL_URL"
+            HTTP_STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "$VERCEL_URL" || echo "000")
+            echo "vercel_status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+            echo "Vercel Frontend HTTP Response Code: $HTTP_STATUS"
+          else
+            echo "No custom VERCEL_APP_URL provided. Skipped frontend ping."
+            echo "vercel_status=N/A" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Write Execution Summary
+        run: |
+          echo "### 🚀 Keep-Alive Ping Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Execution Time (UTC):** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Google Apps Script Backend:** \`${{ steps.ping_gas.outputs.gas_status }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Vercel Frontend:** \`${{ steps.ping_vercel.outputs.vercel_status }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Services successfully kept warm and active to prevent idle suspension." >> $GITHUB_STEP_SUMMARY
