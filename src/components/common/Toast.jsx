@@ -20,7 +20,7 @@ export default function Toast() {
   };
 
   return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-sm pointer-events-none transition-all duration-300">
+    <div className="fixed bottom-6 right-4 sm:right-6 z-50 w-11/12 max-w-sm pointer-events-none transition-all duration-300">
       <div
         className={`px-4 py-3 rounded-2xl border shadow-xl backdrop-blur-md flex items-center space-x-2.5 text-xs font-semibold ${
           borderColors[toast.type] || borderColors.info

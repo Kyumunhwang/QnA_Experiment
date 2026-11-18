@@ -151,7 +151,7 @@ export default function Home() {
 
       {/* 웰컴 배너 (선생님 커스텀 공지 및 테마 색상 연동) */}
       <div
-        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentTheme.bgGradient} text-white p-5 sm:p-6 shadow-xl transition-all duration-300`}
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentTheme.bgGradient} text-white p-5 sm:p-6 shadow-xl transition-all duration-300 min-h-[170px]`}
       >
         <div className="absolute top-0 right-0 -mr-6 -mt-6 w-32 h-32 rounded-full bg-white/10 blur-xl"></div>
         <div className="relative z-10 space-y-2">
@@ -282,7 +282,7 @@ export default function Home() {
               : 'text-slate-500 hover:text-slate-700'
           }`}
         >
-          <span>내 질문 ({myQuestions.length})</span>
+          <span>{currentUser ? `내 질문 (${myQuestions.length})` : '내 질문 (로그인 필요)'}</span>
         </button>
 
         <button

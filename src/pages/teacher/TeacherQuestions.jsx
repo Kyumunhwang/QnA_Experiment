@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import TeacherNav from '../../components/teacher/TeacherNav';
+import { isApprovedStatus, isRejectedStatus, isPendingStatus } from '../../utils/status';
+import { formatKSTDate } from '../../utils/format';
 import {
   CheckSquare,
   Clock,
@@ -14,7 +16,9 @@ import {
   Sparkles,
   Link2,
   Image as ImageIcon,
-  Tag
+  Tag,
+  Filter,
+  Search,
 } from 'lucide-react';
 
 export default function TeacherQuestions() {
@@ -22,19 +26,45 @@ export default function TeacherQuestions() {
     questions,
     updateQuestionStatusAndFeedback,
     showToast,
+    classList,
+    studentRoster,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'approved' | 'rejected' | 'all'
+  const [selectedClass, setSelectedClass] = useState('ALL');
+  const [searchKeyword, setSearchKeyword] = useState('');
   const [feedbackInputs, setFeedbackInputs] = useState({});
   const [isProcessingId, setIsProcessingId] = useState(null);
 
-  // 탭 필터링 및 최신순 정렬 (최근에 등록된 질문이 맨 위, 처음에 등록된 질문이 맨 아래)
+  const availableClasses = Array.from(
+    new Set([...(classList || []), ...((studentRoster || []).map((s) => s.grade_class))])
+  ).filter(Boolean);
+
+  // 탭 필터링, 학급 필터, 검색어 및 최신순 정렬
   const filteredQuestions = questions
     .filter((q) => {
-      const status = q.status || (q.is_selected ? 'approved' : 'pending');
-      if (activeTab === 'pending') return status === 'pending';
-      if (activeTab === 'approved') return status === 'approved';
-      if (activeTab === 'rejected') return status === 'rejected' || status === 'rejected_no_score' || status === 'rejected_type_a';
+      if (activeTab === 'pending' && !isPendingStatus(q)) return false;
+      if (activeTab === 'approved' && !isApprovedStatus(q)) return false;
+      if (activeTab === 'rejected' && !isRejectedStatus(q)) return false;
+
+      // 학급 필터
+      if (selectedClass !== 'ALL' && q.grade_class !== selectedClass) return false;
+
+      // 검색어 필터 (학생 이름 or 질문 내용)
+      if (searchKeyword.trim()) {
+        const kw = searchKeyword.trim().toLowerCase();
+        const sName = (q.student_name || '').toLowerCase();
+        let contentStr = '';
+        if (typeof q.content === 'string') {
+          contentStr = q.content.toLowerCase();
+        } else if (q.content) {
+          contentStr = JSON.stringify(q.content).toLowerCase();
+        }
+        if (!sName.includes(kw) && !contentStr.includes(kw)) {
+          return false;
+        }
+      }
+
       return true;
     })
     .sort((a, b) => {
@@ -84,9 +114,9 @@ export default function TeacherQuestions() {
     setIsProcessingId(null);
   };
 
-  const pendingCount = questions.filter((q) => (q.status || (q.is_selected ? 'approved' : 'pending')) === 'pending').length;
-  const approvedCount = questions.filter((q) => (q.status || (q.is_selected ? 'approved' : 'pending')) === 'approved').length;
-  const rejectedCount = questions.filter((q) => q.status === 'rejected' || q.status === 'rejected_no_score' || q.status === 'rejected_type_a').length;
+  const pendingCount = questions.filter(isPendingStatus).length;
+  const approvedCount = questions.filter(isApprovedStatus).length;
+  const rejectedCount = questions.filter(isRejectedStatus).length;
 
   return (
     <div className="space-y-4 pb-16 animate-fadeIn">
@@ -151,8 +181,38 @@ export default function TeacherQuestions() {
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <span>전체 ({questions.length})</span>
+          <span>전체 보기 ({questions.length})</span>
         </button>
+      </div>
+
+      {/* 검색 및 학급 필터 바 */}
+      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
+          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+            className="px-3 py-1.5 text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-eureka-500 shadow-xs w-full sm:w-auto"
+          >
+            <option value="ALL">전체 학급</option>
+            {availableClasses.map((cls) => (
+              <option key={cls} value={cls}>
+                {cls} 반
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center space-x-2 w-full sm:w-72 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            placeholder="학생 이름 또는 질문 검색..."
+            className="w-full bg-transparent text-xs font-medium focus:outline-none"
+          />
+        </div>
       </div>
 
       {/* 질문 목록 */}
@@ -287,7 +347,7 @@ export default function TeacherQuestions() {
                       <span>선생님의 피드백 및 조언 (학생에게 실시간 노출)</span>
                     </label>
                     <span className="text-[10px] text-slate-400">
-                      {q.created_at ? q.created_at.substring(0, 16) : ''}
+                      {formatKSTDate(q.created_at)}
                     </span>
                   </div>
 

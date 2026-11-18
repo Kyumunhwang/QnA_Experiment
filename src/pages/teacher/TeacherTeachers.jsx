@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import TeacherNav from '../../components/teacher/TeacherNav';
+import { formatKSTDate } from '../../utils/format';
 import {
   ShieldCheck,
   UserPlus,
@@ -80,6 +81,10 @@ export default function TeacherTeachers() {
   };
 
   const startEdit = (teacher) => {
+    if (teacher.teacher_id === 'hwang' && currentTeacher?.teacher_id !== 'hwang') {
+      showToast('슈퍼관리자 정보는 슈퍼관리자 본인만 수정할 수 있습니다.', 'error');
+      return;
+    }
     setEditingTeacher(teacher);
     setEditName(teacher.teacher_name || '');
     setEditPassword('');
@@ -109,6 +114,10 @@ export default function TeacherTeachers() {
   const handleDelete = async (teacher) => {
     if (teacher.teacher_id === 'hwang') {
       showToast('슈퍼관리자(황규문 선생님) 계정은 삭제할 수 없습니다.', 'error');
+      return;
+    }
+    if (teacher.teacher_id === currentTeacher?.teacher_id) {
+      showToast('현재 로그인된 본인 계정은 삭제할 수 없습니다.', 'error');
       return;
     }
     if (
@@ -231,7 +240,7 @@ export default function TeacherTeachers() {
                         )}
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-400 font-mono">
-                        {teacher.created_at || '-'}
+                        {formatKSTDate(teacher.created_at) || '-'}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
@@ -250,6 +259,13 @@ export default function TeacherTeachers() {
                               title="슈퍼관리자는 삭제할 수 없습니다"
                             >
                               삭제 불가
+                            </span>
+                          ) : isMe ? (
+                            <span
+                              className="px-2.5 py-1 text-xs font-medium text-slate-400 bg-slate-50 rounded-lg cursor-not-allowed border border-dashed border-slate-200"
+                              title="본인 계정은 삭제할 수 없습니다"
+                            >
+                              본인 계정
                             </span>
                           ) : (
                             <button

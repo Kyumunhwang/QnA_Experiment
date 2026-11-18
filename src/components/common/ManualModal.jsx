@@ -1,7 +1,9 @@
-import React from 'react';
-import { BookOpen, X, ExternalLink, ArrowLeft, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, X, ExternalLink, ArrowLeft, Download, Loader2 } from 'lucide-react';
 
 export default function ManualModal({ isOpen, onClose }) {
+  const [isLoading, setIsLoading] = useState(true);
+
   if (!isOpen) return null;
 
   return (
@@ -48,9 +50,16 @@ export default function ManualModal({ isOpen, onClose }) {
 
         {/* PDF 뷰어 영역 (iframe) */}
         <div className="flex-1 w-full bg-slate-100 p-2 sm:p-3 relative overflow-hidden flex flex-col">
+          {isLoading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100/90 z-10 space-y-2 pointer-events-none">
+              <Loader2 className="w-8 h-8 text-eureka-600 animate-spin" />
+              <p className="text-xs font-bold text-slate-600">매뉴얼 문서를 불러오는 중입니다...</p>
+            </div>
+          )}
           <object
             data="/manual.pdf#toolbar=1&navpanes=0&scrollbar=1"
             type="application/pdf"
+            onLoad={() => setIsLoading(false)}
             className="w-full flex-1 rounded-2xl border border-slate-200 bg-white shadow-xs"
           >
             {/* PDF 직접 지원하지 않는 모바일 브라우저를 위한 Fallback 안내 */}

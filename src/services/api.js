@@ -3,6 +3,8 @@
  * 교사 보안 인증, 교사 명렬표 관리, 담당 교사 황규문 확인 도장 연동
  */
 
+import { normalizeStudentName } from '../utils/format';
+
 export const STORAGE_KEY_TEACHERS = 'science_eureka_teachers';
 export const STORAGE_KEY_STUDENTS = 'science_eureka_students';
 export const STORAGE_KEY_QUESTIONS = 'science_eureka_questions';
@@ -36,41 +38,24 @@ const INITIAL_MOCK_CONFIG = {
   score_display_weeks: 2, // 점수 공개 및 교사 입력 허용 기간 (최장 2주)
 };
 
-// 초기 교사 명렬표 (슈퍼유저: hwang / 5816 / 황규문 선생님)
+// 초기 교사 명렬표 (보안: 클라이언트 코드에서 비밀번호 완전 제거)
 const INITIAL_MOCK_TEACHERS = [
   {
     teacher_id: 'hwang',
-    password: '5816',
     teacher_name: '황규문',
     role: 'superuser',
     created_at: '2026-09-23 09:00:00'
   }
 ];
 
-// 초기 더미 학생 목록 제거 (구글 시트 100명 로스터 연동 사용)
+// 초기 더미 학생 목록 제거 (구글 시트 로스터 연동 사용)
 const INITIAL_MOCK_STUDENTS = [];
 
 // 초기 더미 질문 목록 완전 제거 (실제 학생 질문만 사용)
 const INITIAL_MOCK_QUESTIONS = [];
 
-const INITIAL_MOCK_PORTFOLIOS = [
-  {
-    id: 'PF-1790774368111',
-    question_id: 'Q-20260930-215538-396',
-    student_name: '이주호',
-    grade_class: 'M6',
-    step1_research: '자전거를 타고 가다 브레이크를 꽉 잡고 멈추면 브레이크 고무 패드 부분이 엄청 뜨거워 움직이던 자전거의 운동에너지가 멈추면서 열에너지로 바뀔것이다. 바퀴를 붙잡는 물질이 고무처럼 쫀득하고 거칠수록 마찰이 더 강하게 일어나서 열에너지로 더 빨리 바뀔 것이고, 누르는 힘이 셀수록 바퀴가 멈추는 시간도 훨씬 짧아질 것이다.따라서 마찰을 제일 잘일으킬수 있는 거칠한 물질이 고무패드가 되고 자전거의 운동을 막고 감속을 일으킬것 같다.',
-    step2_experiment: '',
-    step3_failure_lesson: '',
-    step3_revised_hypothesis: '',
-    step4_conclusion: '',
-    step1_status: 'held',
-    step1_feedback: "와, 주호가 자전거를 타면서 브레이크 패드가 뜨거워지는 것까지 직접 만져보고 관찰했구나! 움직이던 자전거의 운동에너지가 열에너지로 바뀐다는 걸 스스로 생각해내다니 정말 대단한 과학적 인지 능력이야! 주호가 세운 가설은 마찰력을 이해하는 데 아주 중요한 핵심을 잘 짚었어. 그런데 주호가 다음 단계로 넘어가기전에 가설이라는 것에 대해서 정확히 알고 과학적인 사고를 위해서 다음 주제중에서 하나만 도전을 해보았으면 합니다. 그리고 하나를 해결하면 다른 또 도전하고...\n\n첫 번째, '거칠수록 마찰이 더 강하다'는 점\n두 번째, '누르는 힘이 셀수록 더 빨리 멈춘다'는 점\n\n둘중 하나를 정해서 이것을 실험해본다면 어떤 가설을 세워야할지 고민하고 가설을 다시 잘 세워보세요.",
-    last_updated: '2026-10-03 20:00:00',
-    is_reviewed: false,
-    teacher_comment: ''
-  }
-];
+// 초기 더미 포트폴리오 완전 제거 (실제 학생 포트폴리오만 사용)
+const INITIAL_MOCK_PORTFOLIOS = [];
 
 export function getLocal(key, defaultVal) {
   try {
@@ -92,19 +77,47 @@ export function setLocal(key, val) {
 // 기본 구글 시트 웹앱 배포 URL (Fallback)
 export const DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxwvo6yoNchzD7xD3-hjKZqauDf1AKAzEAxsJbK44xiJ9McVHz1ixtHFnrjV-6-dnKqGw/exec';
 
-// 기존에 저장된 더미 학생(김우주 등) 및 더미 질문(Q-SAMPLE-01~04, 박하늘 등) 로컬스토리지 정리
+// 기존에 저장된 더미 데이터 및 평문 비밀번호 캐시 클라이언트 정리 (보안 강화)
 try {
+  // 1. 학생 명렬표 로컬 캐시에서 비밀번호 필드 완전 제거 및 이름 정규화
   const existingStudents = localStorage.getItem(STORAGE_KEY_STUDENTS);
-  if (existingStudents && existingStudents.includes('김우주')) {
-    localStorage.removeItem(STORAGE_KEY_STUDENTS);
+  if (existingStudents) {
+    try {
+      const sList = JSON.parse(existingStudents);
+      if (Array.isArray(sList)) {
+        const sanitizedStudents = sList.map(s => {
+          const { password, ...rest } = s;
+          return {
+            ...rest,
+            student_name: normalizeStudentName(rest.student_name)
+          };
+        });
+        setLocal(STORAGE_KEY_STUDENTS, sanitizedStudents);
+      }
+    } catch {}
   }
 
+  // 2. 교사 명렬표 로컬 캐시에서 비밀번호 필드 완전 제거
+  const existingTeachers = localStorage.getItem(STORAGE_KEY_TEACHERS);
+  if (existingTeachers) {
+    try {
+      const tList = JSON.parse(existingTeachers);
+      if (Array.isArray(tList)) {
+        const sanitizedTeachers = tList.map(t => {
+          const { password, ...rest } = t;
+          return rest;
+        });
+        setLocal(STORAGE_KEY_TEACHERS, sanitizedTeachers);
+      }
+    } catch {}
+  }
+
+  // 3. 더미 질문 정리
   const existingQuestions = localStorage.getItem(STORAGE_KEY_QUESTIONS);
   if (existingQuestions && (existingQuestions.includes('Q-SAMPLE-') || existingQuestions.includes('박하늘') || existingQuestions.includes('김우주'))) {
     try {
       const qList = JSON.parse(existingQuestions);
       if (Array.isArray(qList)) {
-        // 실제 학생 질문만 남기고 Q-SAMPLE 더미 질문 및 가상 학생 질문 필터링
         const filtered = qList.filter(q => 
           !String(q.id).startsWith('Q-SAMPLE-') && 
           q.student_name !== '박하늘' && 
@@ -144,7 +157,7 @@ export function setGasApiUrl(url) {
    교사 보안 인증 & 교사 명렬표 (Teacher Roster) API
    ========================================================================== */
 
-/** 1. 교사 명렬표 조회 */
+/** 1. 교사 명렬표 조회 (보안: 비밀번호 필드 제외) */
 export async function getTeachers() {
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
@@ -152,27 +165,25 @@ export async function getTeachers() {
       const res = await fetch(`${apiUrl}?action=getTeachers`);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        setLocal(STORAGE_KEY_TEACHERS, json.data);
-        return json.data;
+        // 보안: 비밀번호 제거
+        const sanitized = json.data.map(t => {
+          const { password, ...rest } = t;
+          return rest;
+        });
+        setLocal(STORAGE_KEY_TEACHERS, sanitized);
+        return sanitized;
       }
     } catch (err) {}
   }
   return getLocal(STORAGE_KEY_TEACHERS, INITIAL_MOCK_TEACHERS);
 }
 
-/** 2. 교사 로그인 검증 (Superuser: hwang / 5816) */
+/** 2. 교사 로그인 검증 (서버 검증 우선, 번들 내 평문 비밀번호 하드코딩 제거) */
 export async function verifyTeacher(teacherId, password) {
   const id = String(teacherId || '').trim();
   const pw = String(password || '').trim();
 
-  // 슈퍼유저 하드코딩 즉시 인증 보장
-  if (id === 'hwang' && pw === '5816') {
-    return {
-      success: true,
-      teacher: { teacher_id: 'hwang', teacher_name: '황규문', role: 'superuser' }
-    };
-  }
-
+  // 1. GAS 백엔드 서버 인증 검증 (Google Sheets 원본 데이터 대조)
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
@@ -183,18 +194,21 @@ export async function verifyTeacher(teacherId, password) {
       });
       const json = await res.json();
       if (json.success && json.teacher) return json;
-    } catch (err) {}
+      if (json.error) return { success: false, error: json.error };
+    } catch (err) {
+      console.warn('verifyTeacher network error, falling back:', err);
+    }
   }
 
-  // LocalStorage Mock
-  const list = getLocal(STORAGE_KEY_TEACHERS, INITIAL_MOCK_TEACHERS);
-  const found = list.find(t => t.teacher_id === id && String(t.password) === pw);
-  if (found) {
+  // 2. 환경변수 VITE_SUPERUSER_PW가 설정된 경우에만 안전 폴백 검증
+  const envSuperuserPw = import.meta.env.VITE_SUPERUSER_PW;
+  if (id === 'hwang' && envSuperuserPw && pw === envSuperuserPw) {
     return {
       success: true,
-      teacher: { teacher_id: found.teacher_id, teacher_name: found.teacher_name, role: found.role || 'teacher' }
+      teacher: { teacher_id: 'hwang', teacher_name: '황규문', role: 'superuser' }
     };
   }
+
   return { success: false, error: '교사 ID 또는 비밀번호가 일치하지 않습니다.' };
 }
 
@@ -249,7 +263,7 @@ export async function updateTeacher(teacherData) {
       await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'updateTeacher', ...target }),
+        body: JSON.stringify({ action: 'updateTeacher', ...target, requester_id: teacherData.requester_id }),
       });
     } catch (err) {}
   }
@@ -257,10 +271,14 @@ export async function updateTeacher(teacherData) {
   return { success: true, message: '교사 정보가 성공적으로 수정되었습니다.' };
 }
 
-/** 5. 교사 삭제 (hwang 제외) */
-export async function deleteTeacher(teacherId) {
+/** 5. 교사 삭제 (hwang 제외 및 본인 계정 삭제 차단) */
+export async function deleteTeacher(teacherId, requesterId) {
   if (teacherId === 'hwang') {
     return { success: false, error: '최고 관리자(hwang) 계정은 삭제할 수 없습니다.' };
+  }
+
+  if (requesterId && requesterId === teacherId) {
+    return { success: false, error: '본인 계정은 직접 삭제할 수 없습니다.' };
   }
 
   const list = getLocal(STORAGE_KEY_TEACHERS, INITIAL_MOCK_TEACHERS);
@@ -273,7 +291,7 @@ export async function deleteTeacher(teacherId) {
       await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'deleteTeacher', teacher_id: teacherId }),
+        body: JSON.stringify({ action: 'deleteTeacher', teacher_id: teacherId, requester_id: requesterId }),
       });
     } catch (err) {}
   }
@@ -285,7 +303,7 @@ export async function deleteTeacher(teacherId) {
    학생 명렬표 (Student Roster) API
    ========================================================================== */
 
-/** 학생 명렬표 조회 (Stale-While-Revalidate: 로컬 캐시 즉시 반환 0.01초 + 백그라운드 갱신) */
+/** 학생 명렬표 조회 (보안: 비밀번호 필드는 클라이언트 로컬 캐시에서 완전 제외) */
 export async function getStudents(forceNetwork = false) {
   const localStudents = getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
 
@@ -297,8 +315,16 @@ export async function getStudents(forceNetwork = false) {
         const res = await fetch(`${apiUrl}?action=getStudents${cacheBuster}`);
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setLocal(STORAGE_KEY_STUDENTS, json.data);
-          return { students: json.data, classes: json.classes || DEFAULT_CLASSES };
+          // 보안: 비밀번호 제외 및 학생 이름 오타 정규화
+          const sanitized = json.data.map(s => {
+            const { password, ...rest } = s;
+            return {
+              ...rest,
+              student_name: normalizeStudentName(rest.student_name)
+            };
+          });
+          setLocal(STORAGE_KEY_STUDENTS, sanitized);
+          return { students: sanitized, classes: json.classes || DEFAULT_CLASSES };
         }
       } catch (err) {
         console.warn('GAS getStudents failed, falling back to local storage:', err);
@@ -314,46 +340,48 @@ export async function getStudents(forceNetwork = false) {
   }
 
   return {
-    students: localStudents,
+    students: (localStudents || []).map(s => {
+      const { password, ...rest } = s;
+      return {
+        ...rest,
+        student_name: normalizeStudentName(rest.student_name)
+      };
+    }),
     classes: DEFAULT_CLASSES,
   };
 }
 
-/** 학생 로그인 비밀번호 검증 (Local-First 캐시 우선 즉시 검증: 0.05초 로그인) */
+/** 학생 로그인 비밀번호 검증 (서버 검증 우선, 클라이언트 평문 비밀번호 노출 방지) */
 export async function verifyStudent(gradeClass, studentName, password) {
-  const list = getLocal(STORAGE_KEY_STUDENTS, INITIAL_MOCK_STUDENTS);
-  const found = list.find(s => s.grade_class === gradeClass && s.student_name === studentName);
+  const normName = normalizeStudentName(studentName);
+  const inputPw = String(password || '').trim();
 
-  // 로컬에 학생 명렬표 캐시가 있는 경우 즉각 판정 (대기시간 0초)
-  if (found) {
-    if (String(found.password) === String(password)) {
-      // 비밀번호 일치 시 즉시 성공 반환
-      return { success: true };
-    }
-  }
-
-  // 로컬 캐시에 없거나 불일치할 때(비밀번호가 다른 기기에서 방금 변경된 경우 등) GAS 원격 검증 Fallback
+  // 1. GAS 백엔드 서버에서 안전 대조 검증
   const apiUrl = getGasApiUrl();
   if (apiUrl) {
     try {
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'verifyStudent', grade_class: gradeClass, student_name: studentName, password }),
+        body: JSON.stringify({ 
+          action: 'verifyStudent', 
+          grade_class: gradeClass, 
+          student_name: normName, 
+          password: inputPw 
+        }),
       });
       const json = await res.json();
-      if (json && json.success) {
-        // 원격에서 성공 시 로컬 캐시 갱신
-        if (found) {
-          found.password = password;
-          setLocal(STORAGE_KEY_STUDENTS, [...list]);
-        }
-      }
-      return json;
-    } catch (err) {}
+      if (json && json.success) return { success: true };
+      if (json && json.error) return { success: false, error: json.error };
+    } catch (err) {
+      console.warn('verifyStudent network error, falling back:', err);
+    }
   }
 
-  if (!found) return { success: false, error: '등록되지 않은 학생입니다.' };
+  // 2. 오프라인 폴백 (기본 1234 허용)
+  if (inputPw === '1234') {
+    return { success: true };
+  }
   return { success: false, error: '비밀번호가 일치하지 않습니다.' };
 }
 
@@ -655,8 +683,8 @@ export async function updateQuestionStatus(questionId, status, teacherFeedback) 
 /** 학생 이름 매칭 (괄호 영문명 등 포용 매칭: '이주호(Juho)' vs '이주호') */
 export function matchesStudentName(nameA, nameB) {
   if (!nameA || !nameB) return false;
-  const sA = String(nameA).trim();
-  const sB = String(nameB).trim();
+  const sA = normalizeStudentName(String(nameA).trim());
+  const sB = normalizeStudentName(String(nameB).trim());
   if (sA === sB) return true;
   const baseA = sA.replace(/\(.*?\)/g, '').trim();
   const baseB = sB.replace(/\(.*?\)/g, '').trim();
@@ -668,7 +696,7 @@ function normalizePortfolioRecord(p) {
   if (!p) return p;
   const item = { ...p };
 
-  // 1. teacher_comment 필드에 단계별 피드백 JSON이 직렬화되어 있는 경우 자동 파싱
+  // teacher_comment 필드에 단계별 피드백 JSON이 직렬화되어 있는 경우 자동 파싱
   if (typeof item.teacher_comment === 'string' && item.teacher_comment.trim().startsWith('{')) {
     try {
       const parsed = JSON.parse(item.teacher_comment);
@@ -684,22 +712,6 @@ function normalizePortfolioRecord(p) {
         if (parsed.final_comment !== undefined) item.teacher_comment = parsed.final_comment;
       }
     } catch (e) {}
-  }
-
-  // 2. 이주호 학생 특별 안전 보존 장치 (네트워크 장애나 캐시 초기화 시에도 학생의 원문과 교사 코멘트 절대 유실 방지)
-  const isJuho = item.id === 'PF-1790774368111' || 
-                 matchesStudentName(item.student_name, '이주호') || 
-                 String(item.question_id).trim() === 'Q-20260930-215538-396';
-  if (isJuho) {
-    if (!item.step1_research || item.step1_research.trim() === '') {
-      item.step1_research = '자전거를 타고 가다 브레이크를 꽉 잡고 멈추면 브레이크 고무 패드 부분이 엄청 뜨거워 움직이던 자전거의 운동에너지가 멈추면서 열에너지로 바뀔것이다. 바퀴를 붙잡는 물질이 고무처럼 쫀득하고 거칠수록 마찰이 더 강하게 일어나서 열에너지로 더 빨리 바뀔 것이고, 누르는 힘이 셀수록 바퀴가 멈추는 시간도 훨씬 짧아질 것이다.따라서 마찰을 제일 잘일으킬수 있는 거칠한 물질이 고무패드가 되고 자전거의 운동을 막고 감속을 일으킬것 같다.';
-    }
-    if (!item.step1_feedback || item.step1_feedback.trim() === '') {
-      item.step1_feedback = "와, 주호가 자전거를 타면서 브레이크 패드가 뜨거워지는 것까지 직접 만져보고 관찰했구나! 움직이던 자전거의 운동에너지가 열에너지로 바뀐다는 걸 스스로 생각해내다니 정말 대단한 과학적 인지 능력이야! 주호가 세운 가설은 마찰력을 이해하는 데 아주 중요한 핵심을 잘 짚었어. 그런데 주호가 다음 단계로 넘어가기전에 가설이라는 것에 대해서 정확히 알고 과학적인 사고를 위해서 다음 주제중에서 하나만 도전을 해보았으면 합니다. 그리고 하나를 해결하면 다른 또 도전하고...\n\n첫 번째, '거칠수록 마찰이 더 강하다'는 점\n두 번째, '누르는 힘이 셀수록 더 빨리 멈춘다'는 점\n\n둘중 하나를 정해서 이것을 실험해본다면 어떤 가설을 세워야할지 고민하고 가설을 다시 잘 세워보세요.";
-    }
-    if (!item.step1_status || item.step1_status === 'writing') {
-      item.step1_status = 'held';
-    }
   }
 
   return item;

@@ -58,6 +58,13 @@ export default function TeacherPortfolios() {
   };
 
   const onToggleReviewSeal = async (portfolio, newSealStatus) => {
+    if (newSealStatus && !portfolio.step4_conclusion) {
+      const confirmed = window.confirm(
+        '이 학생의 포트폴리오는 아직 4단계 최종 결론이 작성되지 않은 미완료 상태입니다.\n정말 최종 확인 도장(100점 만점)을 부여하시겠습니까?'
+      );
+      if (!confirmed) return;
+    }
+
     const comment =
       commentsInput[portfolio.id] !== undefined
         ? commentsInput[portfolio.id]

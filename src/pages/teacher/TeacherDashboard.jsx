@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import TeacherNav from '../../components/teacher/TeacherNav';
+import { isApprovedStatus, isRejectedStatus, isPendingStatus } from '../../utils/status';
+import { formatKSTDate } from '../../utils/format';
 import {
   Users,
   MessageSquareQuote,
@@ -111,13 +113,9 @@ export default function TeacherDashboard() {
   // 1. 전체 종합 KPI 통계 계산
   const totalStudents = studentRoster.length;
   const totalQuestions = questions.length;
-  const approvedQuestions = questions.filter(
-    (q) => q.status === 'approved' || Boolean(q.is_selected)
-  ).length;
-  const rejectedQuestions = questions.filter((q) => q.status === 'rejected').length;
-  const pendingQuestions = questions.filter(
-    (q) => q.status === 'pending' || (!q.is_selected && q.status !== 'rejected')
-  ).length;
+  const approvedQuestions = questions.filter(isApprovedStatus).length;
+  const rejectedQuestions = questions.filter(isRejectedStatus).length;
+  const pendingQuestions = questions.filter(isPendingStatus).length;
   const completedPortfolios = portfolios.filter((p) => Boolean(p.step4_conclusion)).length;
   const reviewedPortfolios = portfolios.filter((p) => Boolean(p.is_reviewed)).length;
   const overallAvgQuestions =
@@ -126,13 +124,9 @@ export default function TeacherDashboard() {
   // 2. 학생별 질문 및 포트폴리오 통계 매핑
   const studentStatsList = studentRoster.map((student) => {
     const studentQs = questions.filter((q) => q.student_name === student.student_name);
-    const approvedQs = studentQs.filter(
-      (q) => q.status === 'approved' || Boolean(q.is_selected)
-    );
-    const rejectedQs = studentQs.filter((q) => q.status === 'rejected');
-    const pendingQs = studentQs.filter(
-      (q) => q.status === 'pending' || (!q.is_selected && q.status !== 'rejected')
-    );
+    const approvedQs = studentQs.filter(isApprovedStatus);
+    const rejectedQs = studentQs.filter(isRejectedStatus);
+    const pendingQs = studentQs.filter(isPendingStatus);
     const studentPf = portfolios.find((p) => p.student_name === student.student_name);
     const isPfCompleted = Boolean(studentPf?.step4_conclusion);
 
@@ -350,7 +344,7 @@ export default function TeacherDashboard() {
           }`}
         >
           <Trophy className="w-4 h-4 text-amber-500" />
-          <span>🏆 학생별 질문 기록 & 반별 랭킹 통계</span>
+          <span>학생별 질문 기록 & 반별 랭킹 통계</span>
         </button>
 
         <button
@@ -362,7 +356,7 @@ export default function TeacherDashboard() {
           }`}
         >
           <FlaskConical className="w-4 h-4 text-eureka-600" />
-          <span>📊 학생별 5단계 탐구 진행 현황판</span>
+          <span>학생별 5단계 탐구 진행 현황판</span>
         </button>
       </div>
 
@@ -759,12 +753,12 @@ export default function TeacherDashboard() {
                                       </div>
 
                                       {/* 상태 배지 */}
-                                      {qStatus === 'approved' ? (
+                                      {isApprovedStatus(q) ? (
                                         <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md flex items-center space-x-0.5">
                                           <Check className="w-2.5 h-2.5" />
                                           <span>승인됨</span>
                                         </span>
-                                      ) : qStatus === 'rejected' ? (
+                                      ) : isRejectedStatus(q) ? (
                                         <span className="text-[10px] font-extrabold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md flex items-center space-x-0.5">
                                           <XCircle className="w-2.5 h-2.5" />
                                           <span>반려됨</span>
@@ -796,7 +790,7 @@ export default function TeacherDashboard() {
                                     {/* 등록 일시 */}
                                     {q.created_at && (
                                       <div className="text-[10px] text-slate-400 text-right">
-                                        등록: {String(q.created_at).substring(0, 16)}
+                                        등록: {formatKSTDate(q.created_at)}
                                       </div>
                                     )}
                                   </div>
@@ -1207,53 +1201,118 @@ export default function TeacherDashboard() {
                               );
                             })()}
 
-                            {/* Step 4. 최종 결론 및 도장 승인 카드 */}
-                            <div className="p-3 rounded-2xl border border-amber-300 bg-amber-50/40 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-xs text-amber-900 flex items-center space-x-1.5">
-                                  <Award className="w-4 h-4 text-amber-600" />
-                                  <span>4단계: 최종 결론 & 교사 최종 도장 승인 (+1점, 100점 만점)</span>
-                                </span>
-                                {pf.is_reviewed ? (
-                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                                    💮 100점 만점 도장 완료
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                                    도장 미승인
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
-                                {pf.step4_conclusion || '아직 최종 결론이 작성되지 않았습니다.'}
-                              </p>
-                              {pf.teacher_comment && (
-                                <p className="text-[11px] text-amber-900 bg-amber-100/70 p-2 rounded-lg font-medium">
-                                  선생님 총평: "{pf.teacher_comment}" ({pf.reviewed_by || '교사'})
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  placeholder="선생님 최종 총평 코멘트 입력..."
-                                  value={trackerStepFeedbacks[`${pf.id}_final`] || ''}
-                                  onChange={(e) => handleStepFeedbackChange(`${pf.id}_final`, e.target.value)}
-                                  className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={isProcessingStep}
-                                  onClick={() => handleToggleFinalStamp(pf.id, Boolean(pf.is_reviewed))}
-                                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black shadow-xs shrink-0 transition flex items-center space-x-1 ${
-                                    pf.is_reviewed
-                                      ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                      : 'bg-rose-600 hover:bg-rose-700 text-white'
-                                  }`}
-                                >
-                                  <span>{pf.is_reviewed ? '도장 취소' : '💮 최종 도장 승인 (+1점, 100점)'}</span>
-                                </button>
-                              </div>
-                            </div>
+                            {/* Step 4. 최종 결론 심사 및 도장 카드 */}
+                            {(() => {
+                              const fb4 = trackerStepFeedbacks[`${pf.id}_step4`] !== undefined
+                                ? trackerStepFeedbacks[`${pf.id}_step4`]
+                                : (pf.step4_feedback || '');
+
+                              return (
+                                <div className="p-3 rounded-2xl border border-amber-300 bg-amber-50/40 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-extrabold text-xs text-amber-900 flex items-center space-x-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-700 text-[10px] flex items-center justify-center font-black">4</span>
+                                      <span>4단계: 최종 결론 도출 (+1점)</span>
+                                    </span>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                      pf.step4_status === 'approved'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : pf.step4_status === 'held'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : pf.step4_status === 'submitted'
+                                        ? 'bg-blue-100 text-blue-800 animate-pulse'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {pf.step4_status === 'approved' ? '✓ 승인됨 (+1점)' : pf.step4_status === 'held' ? '⚠️ 보류됨 (학생 수정중)' : pf.step4_status === 'submitted' ? '⏳ 검토요청 (보완 제출됨)' : '작성중'}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] font-extrabold text-slate-700 block">📝 학생이 작성/보완한 4단계 최종 결론:</span>
+                                    <p className="text-xs text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed font-medium">
+                                      {pf.step4_conclusion || '아직 최종 결론이 작성되지 않았습니다.'}
+                                    </p>
+                                  </div>
+                                  {pf.step4_feedback && (
+                                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-0.5">
+                                      <span className="text-[10px] font-black text-rose-700 block">💬 이전에 학생에게 전달한 4단계 피드백:</span>
+                                      <p className="text-rose-900 font-bold leading-relaxed whitespace-pre-line">"{pf.step4_feedback}"</p>
+                                    </div>
+                                  )}
+                                  <div className="space-y-1.5 pt-1">
+                                    <textarea
+                                      rows={2}
+                                      placeholder="학생에게 보낼 4단계 피드백 코멘트를 입력하세요 (보류 시 필수)..."
+                                      value={fb4}
+                                      onChange={(e) => handleStepFeedbackChange(`${pf.id}_step4`, e.target.value)}
+                                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none leading-relaxed"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 4, 'held', fb4)}
+                                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        코멘트와 함께 보류
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleApproveStep(pf.id, 4, 'approved', fb4)}
+                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                      >
+                                        승인 (+1점)
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* 교사 최종 확인 도장 (100점 만점) */}
+                                  <div className="pt-3 border-t border-amber-200 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-extrabold text-xs text-amber-900 flex items-center space-x-1.5">
+                                        <Award className="w-4 h-4 text-amber-600" />
+                                        <span>교사 최종 확인 도장 (100점 만점 수여)</span>
+                                      </span>
+                                      {pf.is_reviewed ? (
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                          💮 100점 만점 도장 완료
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                          도장 미승인
+                                        </span>
+                                      )}
+                                    </div>
+                                    {pf.teacher_comment && (
+                                      <p className="text-[11px] text-amber-900 bg-amber-100/70 p-2 rounded-lg font-medium">
+                                        선생님 총평: "{pf.teacher_comment}" ({pf.reviewed_by || '교사'})
+                                      </p>
+                                    )}
+                                    <div className="flex items-center gap-2 pt-1">
+                                      <input
+                                        type="text"
+                                        placeholder="선생님 최종 총평 코멘트 입력..."
+                                        value={trackerStepFeedbacks[`${pf.id}_final`] || ''}
+                                        onChange={(e) => handleStepFeedbackChange(`${pf.id}_final`, e.target.value)}
+                                        className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={isProcessingStep}
+                                        onClick={() => handleToggleFinalStamp(pf.id, Boolean(pf.is_reviewed))}
+                                        className={`px-3.5 py-1.5 rounded-xl text-xs font-black shadow-xs shrink-0 transition flex items-center space-x-1 ${
+                                          pf.is_reviewed
+                                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                            : 'bg-rose-600 hover:bg-rose-700 text-white'
+                                        }`}
+                                      >
+                                        <span>{pf.is_reviewed ? '도장 취소' : '💮 최종 도장 승인'}</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </>
                         )}
                       </div>

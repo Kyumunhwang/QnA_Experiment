@@ -113,11 +113,7 @@ export default function PortfolioEditor() {
       const match = list.find((p) => matchesStudentName(p.student_name, studentName));
       if (match) return match;
     }
-    if (studentName && matchesStudentName(studentName, '이주호')) {
-      const match = list.find((p) => p.id === 'PF-1790774368111');
-      if (match) return match;
-    }
-    return list[0];
+    return null;
   };
 
   // 포트폴리오 상태 바인딩 함수
@@ -194,6 +190,52 @@ export default function PortfolioEditor() {
     }
     loadExisting();
   }, [questionId, portfolioIdParam, currentUser]);
+
+  // 1. 미로그인 상태 접근 차단
+  if (!currentUser && !currentTeacher) {
+    return (
+      <div className="py-16 text-center space-y-4 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm animate-fadeIn">
+        <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+          <Lock className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-extrabold text-slate-800">로그인이 필요한 페이지입니다</h3>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+            탐구 일지를 작성하거나 확인하려면 먼저 학생 또는 교사 계정으로 로그인해 주세요.
+          </p>
+        </div>
+        <button
+          onClick={() => setIsLoginModalOpen(true)}
+          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+        >
+          로그인하기
+        </button>
+      </div>
+    );
+  }
+
+  // 2. 타 학생 과제 접근 차단 (교사는 통과)
+  if (currentUser && targetQuestion && !matchesStudentName(targetQuestion.student_name, currentUser.studentName) && !currentTeacher) {
+    return (
+      <div className="py-16 text-center space-y-4 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm animate-fadeIn">
+        <div className="w-14 h-14 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+          <Lock className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-extrabold text-slate-800">접근 권한이 없습니다</h3>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+            본인의 승인된 탐구 과제만 일지를 작성할 수 있습니다.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/')}
+          className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition"
+        >
+          홈으로 돌아가기
+        </button>
+      </div>
+    );
+  }
 
   // 선생님 승인 여부 검증
   if (targetQuestion && !targetQuestion.is_selected) {

@@ -501,27 +501,27 @@ export default function TeacherWeeklyScores() {
                     {is100 ? (
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-purple-100 text-purple-800 flex items-center space-x-1">
                         <Trophy className="w-3 h-3 text-purple-600" />
-                        <span>축포 환영 🎆</span>
+                        <span>축포 환영</span>
                       </span>
                     ) : isChallenge ? (
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-blue-100 text-blue-800 flex items-center space-x-1">
                         <Zap className="w-3 h-3 text-blue-600" />
-                        <span>도전등 ⚡</span>
+                        <span>도전등</span>
                       </span>
                     ) : isEncourage ? (
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-100 text-amber-800 flex items-center space-x-1">
                         <Lightbulb className="w-3 h-3 text-amber-600" />
-                        <span>격려등 💡</span>
+                        <span>격려등</span>
                       </span>
                     ) : st.lightType === 'pending' ? (
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-50 text-amber-900 border border-amber-300 flex items-center space-x-1">
                         <Clock className="w-3 h-3 text-amber-600" />
-                        <span>검토대기 ⏳</span>
+                        <span>검토대기</span>
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-rose-100 text-rose-800 flex items-center space-x-1">
                         <AlertTriangle className="w-3 h-3 text-rose-600" />
-                        <span>경고등 🚨</span>
+                        <span>경고등</span>
                       </span>
                     )}
                   </div>

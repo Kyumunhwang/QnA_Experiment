@@ -89,7 +89,7 @@ function doGet(e) {
     const action = e.parameter.action || 'getQuestions';
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1. 교사 명렬표 조회
+    // 1. 교사 명렬표 조회 (보안: 비밀번호 필드는 응답에서 절대 제외)
     if (action === 'getTeachers') {
       const sheet = ss.getSheetByName(SHEET_TEACHERS);
       if (!sheet) return createResponse({ success: false, error: 'Teachers 시트 없음' });
@@ -98,13 +98,17 @@ function doGet(e) {
       const headers = rows[0];
       const data = rows.slice(1).map(row => {
         const item = {};
-        headers.forEach((h, i) => { item[h] = row[i]; });
+        headers.forEach((h, i) => {
+          if (h !== 'password') {
+            item[h] = row[i];
+          }
+        });
         return item;
       });
       return createResponse({ success: true, data: data });
     }
     
-    // 2. 학생 명렬표 조회
+    // 2. 학생 명렬표 조회 (보안: 비밀번호 필드는 응답에서 절대 제외, 이름 오타 자동 정규화)
     if (action === 'getStudents') {
       const sheet = ss.getSheetByName(SHEET_STUDENTS);
       if (!sheet) return createResponse({ success: false, error: 'Students 시트 없음' });
@@ -113,7 +117,14 @@ function doGet(e) {
       const headers = rows[0];
       const data = rows.slice(1).map(row => {
         const item = {};
-        headers.forEach((h, i) => { item[h] = row[i]; });
+        headers.forEach((h, i) => {
+          if (h !== 'password') {
+            item[h] = row[i];
+          }
+        });
+        if (item.student_name) {
+          item.student_name = String(item.student_name).trim().replace(/\(([^)]+)\)([a-zA-Z]+)/g, '($1$2)');
+        }
         return item;
       });
       return createResponse({ success: true, data: data, classes: CLASSES });
@@ -234,13 +245,18 @@ function doPost(e) {
       return createResponse({ success: true, message: `${teacherName} 선생님이 등록되었습니다.` });
     }
 
-    // 3. 교사 정보 수정
+    // 3. 교사 정보 수정 (최고 관리자 hwang 보호)
     if (action === 'updateTeacher') {
       const sheet = ss.getSheetByName(SHEET_TEACHERS);
       const teacherId = String(body.teacher_id || '').trim();
       const password = String(body.password || '').trim();
       const teacherName = String(body.teacher_name || '').trim();
       const role = String(body.role || 'teacher').trim();
+      const requesterId = String(body.requester_id || '').trim();
+
+      if (teacherId === 'hwang' && requesterId && requesterId !== 'hwang') {
+        return createResponse({ success: false, error: '최고 관리자(hwang) 계정은 본인만 수정할 수 있습니다.' });
+      }
 
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
@@ -254,12 +270,18 @@ function doPost(e) {
       return createResponse({ success: false, error: '해당 교사를 찾을 수 없습니다.' });
     }
 
-    // 4. 교사 삭제 (hwang 제외)
+    // 4. 교사 삭제 (hwang 제외 및 본인 계정 삭제 방지)
     if (action === 'deleteTeacher') {
       const sheet = ss.getSheetByName(SHEET_TEACHERS);
       const teacherId = String(body.teacher_id || '').trim();
+      const requesterId = String(body.requester_id || '').trim();
+
       if (teacherId === 'hwang') {
         return createResponse({ success: false, error: '최고 관리자(hwang) 계정은 삭제할 수 없습니다.' });
+      }
+
+      if (requesterId && requesterId === teacherId) {
+        return createResponse({ success: false, error: '본인 계정은 직접 삭제할 수 없습니다.' });
       }
 
       const rows = sheet.getDataRange().getValues();

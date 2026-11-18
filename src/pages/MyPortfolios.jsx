@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { getPortfolios } from '../services/api';
-import { BookOpen, Calendar, ArrowRight, FileText, PlusCircle, Compass } from 'lucide-react';
+import { matchesStudentName } from '../services/api';
+import { formatKSTDate } from '../utils/format';
+import { BookOpen, Calendar, ArrowRight, FileText, PlusCircle, Compass, Lock } from 'lucide-react';
 
 export default function MyPortfolios() {
   const navigate = useNavigate();
-  const { studentName, questions, portfolios, refreshPortfolios } = useApp();
+  const { currentUser, currentTeacher, studentName, questions, portfolios, refreshPortfolios, setIsLoginModalOpen } = useApp();
   const [localPortfolios, setLocalPortfolios] = useState(portfolios);
 
   useEffect(() => {
@@ -14,8 +15,37 @@ export default function MyPortfolios() {
   }, []);
 
   useEffect(() => {
-    setLocalPortfolios(portfolios);
-  }, [portfolios]);
+    let list = Array.isArray(portfolios) ? [...portfolios] : [];
+    // 학생인 경우 본인의 포트폴리오만 필터링
+    if (currentUser?.studentName) {
+      list = list.filter((p) => matchesStudentName(p.student_name, currentUser.studentName));
+    }
+    // 최신 수정순 정렬
+    list.sort((a, b) => new Date(b.last_updated || 0) - new Date(a.last_updated || 0));
+    setLocalPortfolios(list);
+  }, [portfolios, currentUser]);
+
+  if (!currentUser && !currentTeacher) {
+    return (
+      <div className="py-16 text-center space-y-4 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm animate-fadeIn">
+        <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+          <Lock className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-extrabold text-slate-800">로그인이 필요한 페이지입니다</h3>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+            내 탐구 일지를 확인하거나 이어서 작성하려면 먼저 학생 계정으로 로그인해 주세요.
+          </p>
+        </div>
+        <button
+          onClick={() => setIsLoginModalOpen(true)}
+          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+        >
+          로그인하기
+        </button>
+      </div>
+    );
+  }
 
   const findQuestion = (questionId) => {
     return questions.find((q) => String(q.id) === String(questionId));
@@ -88,7 +118,7 @@ export default function MyPortfolios() {
                   </span>
                   <div className="flex items-center space-x-1 text-[11px] text-slate-400">
                     <Calendar className="w-3 h-3" />
-                    <span>{item.last_updated || '최근'}</span>
+                    <span>{formatKSTDate(item.last_updated)}</span>
                   </div>
                 </div>
 
