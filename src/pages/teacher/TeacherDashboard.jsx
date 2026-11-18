@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import TeacherNav from '../../components/teacher/TeacherNav';
 import { isApprovedStatus, isRejectedStatus, isPendingStatus } from '../../utils/status';
 import { formatKSTDate } from '../../utils/format';
+import { matchesStudentName } from '../../services/api';
 import {
   Users,
   MessageSquareQuote,
@@ -27,7 +28,10 @@ import {
   Medal,
   Check,
   HelpCircle,
-  FileText
+  FileText,
+  Send,
+  CornerDownRight,
+  MessageCircle
 } from 'lucide-react';
 
 export default function TeacherDashboard() {
@@ -42,6 +46,7 @@ export default function TeacherDashboard() {
     currentTeacher,
     approvePortfolioStepAction,
     reviewPortfolioAction,
+    updateQuestionStatusAndFeedback,
     showToast,
   } = useApp();
 
@@ -52,6 +57,8 @@ export default function TeacherDashboard() {
   const [expandedTrackerStudent, setExpandedTrackerStudent] = useState(null);
   const [trackerStepFeedbacks, setTrackerStepFeedbacks] = useState({});
   const [isProcessingStep, setIsProcessingStep] = useState(false);
+  const [nextStageFilter, setNextStageFilter] = useState('all'); // 'all' | 'needs_action' | 'in_progress' | 'completed'
+  const [expandedNextStageQuestionId, setExpandedNextStageQuestionId] = useState(null);
 
   // 학급 필터 목록 (alumni 클래스가 존재하면 포함)
   const availableClasses = Array.from(
@@ -109,6 +116,142 @@ export default function TeacherDashboard() {
       setIsProcessingStep(false);
     }
   };
+
+  const handleQuestionDirectFeedback = async (questionId, feedback) => {
+    if (!feedback.trim()) {
+      showToast('피드백 코멘트를 입력해 주세요.', 'error');
+      return;
+    }
+    setIsProcessingStep(true);
+    try {
+      await updateQuestionStatusAndFeedback(questionId, 'approved', feedback.trim());
+      await refreshQuestions();
+      showToast('교사 피드백이 성공적으로 등록되었습니다.', 'success');
+    } catch (e) {
+      showToast('피드백 등록 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsProcessingStep(false);
+    }
+  };
+
+  const getParsedQuestionText = (q) => {
+    if (!q) return '';
+    let questionText = q.content;
+    if (q.ui_type === 'B') {
+      try {
+        const obj = typeof q.content === 'string' ? JSON.parse(q.content) : q.content;
+        questionText = `[See] ${obj.see || ''} / [Think] ${obj.think || ''} / [Wonder] ${obj.wonder || ''}`;
+      } catch (e) {}
+    }
+    return questionText;
+  };
+
+  // 승인되어 다음 단계(1~4단계 및 최종도장) 진행 중인 질문 분석 목록 (사용자 요청 핵심 기능)
+  const approvedNextStageQuestions = questions
+    .filter(isApprovedStatus)
+    .filter((q) => {
+      if (selectedClass !== 'ALL' && q.grade_class !== selectedClass) return false;
+      return true;
+    })
+    .map((q) => {
+      const pf = portfolios.find(
+        (p) => String(p.question_id).trim() === String(q.id).trim() ||
+               (p.student_name && matchesStudentName(p.student_name, q.student_name))
+      );
+
+      let approvedStage = '질문 승인 (과제 채택 완료)';
+      let currentStep = 1;
+      let currentStepName = '1단계: 가설 및 사전조사';
+      let stepStatus = 'writing';
+      let contentPreview = '';
+      let existingFeedback = '';
+
+      if (!pf) {
+        approvedStage = '질문 승인 (과제 채택 완료)';
+        currentStep = 1;
+        currentStepName = '1단계: 가설 및 사전조사';
+        stepStatus = 'writing';
+        contentPreview = '학생이 아직 탐구 일지 작성을 시작하지 않았습니다.';
+        existingFeedback = q.teacher_feedback || '';
+      } else if (pf.step1_status !== 'approved') {
+        approvedStage = '질문 승인 (과제 채택 완료)';
+        currentStep = 1;
+        currentStepName = '1단계: 가설 및 사전조사';
+        stepStatus = pf.step1_status || (pf.step1_research ? 'submitted' : 'writing');
+        contentPreview = pf.step1_research || '가설 작성 중';
+        existingFeedback = pf.step1_feedback || '';
+      } else if (pf.step2_status !== 'approved') {
+        approvedStage = '1단계 가설 승인 완료 ✓';
+        currentStep = 2;
+        currentStepName = '2단계: 실험 및 관찰 과정';
+        stepStatus = pf.step2_status || (pf.step2_experiment ? 'submitted' : 'writing');
+        contentPreview = pf.step2_experiment || '실험 및 관찰 내용 작성 중';
+        existingFeedback = pf.step2_feedback || '';
+      } else if (pf.step3_status !== 'approved') {
+        approvedStage = '2단계 실험 승인 완료 ✓';
+        currentStep = 3;
+        currentStepName = '3단계: 실패 분석 및 가설 수정';
+        stepStatus = pf.step3_status || (pf.step3_failure_lesson ? 'submitted' : 'writing');
+        contentPreview = pf.step3_failure_lesson
+          ? `• 배운 점: ${pf.step3_failure_lesson}${pf.step3_revised_hypothesis ? `\n• 수정한 가설: ${pf.step3_revised_hypothesis}` : ''}`
+          : '실패 분석 작성 중';
+        existingFeedback = pf.step3_feedback || '';
+      } else if (pf.step4_status !== 'approved') {
+        approvedStage = '3단계 실패분석 승인 완료 ✓';
+        currentStep = 4;
+        currentStepName = '4단계: 최종 결론 도출';
+        stepStatus = pf.step4_status || (pf.step4_conclusion ? 'submitted' : 'writing');
+        contentPreview = pf.step4_conclusion || '최종 결론 작성 중';
+        existingFeedback = pf.step4_feedback || '';
+      } else if (!pf.is_reviewed) {
+        approvedStage = '4단계 결론 승인 완료 ✓';
+        currentStep = 5;
+        currentStepName = '교사 최종 도장 승인 대기';
+        stepStatus = 'stamp_pending';
+        contentPreview = pf.step4_conclusion || '최종 결론 작성 완료';
+        existingFeedback = pf.teacher_comment || '';
+      } else {
+        approvedStage = '교사 최종 확인 도장 완료 💮';
+        currentStep = 5;
+        currentStepName = '탐구 완료 (100점 만점 수여)';
+        stepStatus = 'completed';
+        contentPreview = pf.step4_conclusion || '탐구 완료';
+        existingFeedback = pf.teacher_comment || '';
+      }
+
+      return {
+        question: q,
+        portfolio: pf,
+        approvedStage,
+        currentStep,
+        currentStepName,
+        stepStatus,
+        contentPreview,
+        existingFeedback,
+      };
+    })
+    .sort((a, b) => {
+      const priority = { submitted: 1, stamp_pending: 2, held: 3, writing: 4, completed: 5 };
+      const pA = priority[a.stepStatus] || 99;
+      const pB = priority[b.stepStatus] || 99;
+      if (pA !== pB) return pA - pB;
+      const tA = new Date(a.portfolio?.last_updated || a.question.created_at || 0).getTime();
+      const tB = new Date(b.portfolio?.last_updated || b.question.created_at || 0).getTime();
+      return tB - tA;
+    });
+
+  const filteredNextStageQuestions = approvedNextStageQuestions.filter((item) => {
+    if (nextStageFilter === 'needs_action') {
+      return item.stepStatus === 'submitted' || item.stepStatus === 'stamp_pending';
+    }
+    if (nextStageFilter === 'in_progress') {
+      return item.stepStatus === 'writing' || item.stepStatus === 'held';
+    }
+    if (nextStageFilter === 'completed') {
+      return item.stepStatus === 'completed';
+    }
+    return true;
+  });
 
   // 1. 전체 종합 KPI 통계 계산
   const totalStudents = studentRoster.length;
@@ -363,6 +506,288 @@ export default function TeacherDashboard() {
       {/* 탭 1: 학생별 질문 기록 & 반별 랭킹 통계 (사용자 요청 핵심 화면) */}
       {activeTab === 'qna_stats' && (
         <div className="space-y-4 animate-fadeIn">
+          {/* 🌟 사용자 요청 핵심 기능: 승인되어 다음 단계 진행 중인 질문들 (전체 학급 질문 통계 바로 위에 배치) */}
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-eureka-200/90 shadow-xs space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="p-1.5 rounded-xl bg-eureka-100 text-eureka-700">
+                    <FlaskConical className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-sm sm:text-base font-black text-slate-800">
+                    승인되어 다음 단계 진행 중인 질문들
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-black bg-eureka-50 text-eureka-700 border border-eureka-200">
+                    {approvedNextStageQuestions.length}건
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  선생님에게 승인되어 후속 4단계 탐구를 진행 중인 학생들의 현황입니다. 어느 단계까지 승인되었는지 확인하고 바로 답변 및 피드백을 전달할 수 있습니다.
+                </p>
+              </div>
+
+              {/* 필터 탭 (전체 / 답변·도장 필요 / 작성·보완 중 / 완료) */}
+              <div className="flex items-center flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setNextStageFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg transition ${
+                    nextStageFilter === 'all'
+                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  전체 ({approvedNextStageQuestions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNextStageFilter('needs_action')}
+                  className={`px-2.5 py-1 rounded-lg transition flex items-center space-x-1 ${
+                    nextStageFilter === 'needs_action'
+                      ? 'bg-blue-600 text-white shadow-2xs font-extrabold'
+                      : 'text-blue-700 hover:text-blue-900 bg-blue-50/80'
+                  }`}
+                >
+                  <span>답변·도장 필요</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-blue-500 text-white text-[10px]">
+                    {approvedNextStageQuestions.filter((i) => i.stepStatus === 'submitted' || i.stepStatus === 'stamp_pending').length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNextStageFilter('in_progress')}
+                  className={`px-2.5 py-1 rounded-lg transition ${
+                    nextStageFilter === 'in_progress'
+                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  작성·보완 중 ({approvedNextStageQuestions.filter((i) => i.stepStatus === 'writing' || i.stepStatus === 'held').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNextStageFilter('completed')}
+                  className={`px-2.5 py-1 rounded-lg transition ${
+                    nextStageFilter === 'completed'
+                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  완료 ({approvedNextStageQuestions.filter((i) => i.stepStatus === 'completed').length})
+                </button>
+              </div>
+            </div>
+
+            {/* 승인 진행 질문 목록 */}
+            <div className="space-y-3">
+              {filteredNextStageQuestions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  해당 조건의 승인 진행 중인 질문이 없습니다.
+                </div>
+              ) : (
+                filteredNextStageQuestions.map((item, idx) => {
+                  const { question: q, portfolio: pf, approvedStage, currentStep, currentStepName, stepStatus, contentPreview, existingFeedback } = item;
+                  const isExpanded = expandedNextStageQuestionId === q.id || filteredNextStageQuestions.length <= 3;
+                  const fbKey = pf ? (currentStep === 5 ? `${pf.id}_final` : `${pf.id}_step${currentStep}`) : `q_${q.id}`;
+                  const currentInputFeedback = trackerStepFeedbacks[fbKey] !== undefined ? trackerStepFeedbacks[fbKey] : existingFeedback;
+
+                  return (
+                    <div
+                      key={q.id || idx}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5 sm:p-4 space-y-3 transition hover:border-eureka-300 hover:bg-white"
+                    >
+                      {/* 카드 상단: 학생 정보 + 어느 단계에서 승인되었는지 배지 + 현재 단계 배지 */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          <span className="bg-slate-800 text-white font-black text-[10px] px-2 py-0.5 rounded-md">
+                            {q.grade_class}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {q.student_name} 학생
+                          </span>
+
+                          {/* 📌 핵심: 어느 단계에서 승인되었는지 명시 */}
+                          <span className="inline-flex items-center space-x-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>승인 이력: {approvedStage}</span>
+                          </span>
+
+                          <span className="text-slate-400 text-xs font-black">➔</span>
+
+                          {/* 다음으로 진행 중인 단계 */}
+                          <span className="inline-flex items-center space-x-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                            <Clock className="w-3 h-3 text-blue-600" />
+                            <span>다음 진행: {currentStepName}</span>
+                          </span>
+                        </div>
+
+                        {/* 상태 배지 및 펼치기 토글 */}
+                        <div className="flex items-center space-x-2 self-end sm:self-auto">
+                          {stepStatus === 'submitted' ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 animate-pulse">
+                              ⏳ 검토 요청 (학생 작성 완료)
+                            </span>
+                          ) : stepStatus === 'stamp_pending' ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                              💮 최종 도장 승인 대기
+                            </span>
+                          ) : stepStatus === 'held' ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                              ⚠️ 보류 (학생 보완 중)
+                            </span>
+                          ) : stepStatus === 'completed' ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              ✓ 전 과정 완료 (100점)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              📝 학생 작성 중
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setExpandedNextStageQuestionId(isExpanded ? null : q.id)}
+                            className="p-1 text-slate-400 hover:text-slate-700 transition"
+                            title={isExpanded ? '접기' : '펼치기'}
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-eureka-600" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 승인된 질문 본문 */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="flex items-center space-x-1.5 text-[10px] font-bold text-slate-400 mb-0.5">
+                          <HelpCircle className="w-3 h-3 text-amber-500" />
+                          <span>승인된 호기심 질문:</span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-800 leading-snug">
+                          "{getParsedQuestionText(q)}"
+                        </p>
+                      </div>
+
+                      {/* 상세 펼침 영역: 학생 작성 내용 + 교사 즉시 답변 및 승인/보류 액션 */}
+                      {isExpanded && (
+                        <div className="space-y-3 pt-1 border-t border-slate-200/60 animate-fadeIn">
+                          {/* 학생이 현재 단계에 작성한 실제 내용 */}
+                          <div className="space-y-1">
+                            <span className="text-[11px] font-extrabold text-slate-700 flex items-center space-x-1">
+                              <FlaskConical className="w-3.5 h-3.5 text-blue-600" />
+                              <span>학생이 작성한 {currentStepName} 내용:</span>
+                            </span>
+                            <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed font-medium whitespace-pre-line">
+                              {contentPreview}
+                            </div>
+                          </div>
+
+                          {/* 기존 피드백 코멘트가 있을 경우 표시 */}
+                          {existingFeedback && (
+                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-0.5">
+                              <span className="text-[10px] font-black text-amber-800 block">
+                                💬 이전에 학생에게 전달한 피드백 코멘트:
+                              </span>
+                              <p className="text-amber-950 font-bold leading-relaxed whitespace-pre-line">
+                                "{existingFeedback}"
+                              </p>
+                            </div>
+                          )}
+
+                          {/* 교사의 즉시 답변 및 단계별 피드백 입력 폼 */}
+                          <div className="space-y-2 pt-1">
+                            <label className="text-[11px] font-extrabold text-slate-700 flex items-center justify-between">
+                              <span className="flex items-center space-x-1">
+                                <MessageSquareQuote className="w-3.5 h-3.5 text-eureka-600" />
+                                <span>선생님 답변 및 피드백 작성 (학생 화면에 즉시 노출):</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                {formatKSTDate(pf?.last_updated || q.created_at)}
+                              </span>
+                            </label>
+
+                            <textarea
+                              rows={2}
+                              value={currentInputFeedback}
+                              onChange={(e) => handleStepFeedbackChange(fbKey, e.target.value)}
+                              placeholder="학생에게 전달할 조언, 피드백 코멘트를 입력하세요 (보류 시 필수)..."
+                              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-eureka-500 resize-none font-medium leading-relaxed"
+                            />
+
+                            {/* 액션 버튼 바 */}
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
+                              {/* 탐구 일지 전체 보기 바로가기 링크 */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    pf
+                                      ? `/portfolio/new?questionId=${q.id}&id=${pf.id}`
+                                      : `/portfolio/new?questionId=${q.id}`
+                                  )
+                                }
+                                className="text-xs font-bold text-slate-600 hover:text-eureka-700 flex items-center space-x-1 underline self-start sm:self-auto"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>전체 탐구 일지 보기</span>
+                              </button>
+
+                              {/* 승인 / 보류 / 도장 액션 버튼들 */}
+                              <div className="flex items-center gap-2 self-end sm:self-auto">
+                                {pf && currentStep <= 4 ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={isProcessingStep}
+                                      onClick={() => handleApproveStep(pf.id, currentStep, 'held', currentInputFeedback)}
+                                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-xs transition"
+                                    >
+                                      코멘트와 함께 보류
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isProcessingStep}
+                                      onClick={() => handleApproveStep(pf.id, currentStep, 'approved', currentInputFeedback)}
+                                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center space-x-1"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>
+                                        {currentStep === 4 ? '4단계 승인 (+1점)' : `${currentStep}단계 승인 (+3점)`}
+                                      </span>
+                                    </button>
+                                  </>
+                                ) : pf && currentStep === 5 && stepStatus === 'stamp_pending' ? (
+                                  <button
+                                    type="button"
+                                    disabled={isProcessingStep}
+                                    onClick={() => handleToggleFinalStamp(pf.id, Boolean(pf.is_reviewed))}
+                                    className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center space-x-1"
+                                  >
+                                    <Award className="w-3.5 h-3.5" />
+                                    <span>💮 최종 확인 도장 승인 (100점 만점)</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={isProcessingStep}
+                                    onClick={() => handleQuestionDirectFeedback(q.id, currentInputFeedback)}
+                                    className="px-3.5 py-1.5 bg-eureka-600 hover:bg-eureka-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center space-x-1"
+                                  >
+                                    <Send className="w-3 h-3" />
+                                    <span>교사 답변 및 피드백 저장</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           {/* 학급 선택 필터 및 반별 통계 요약 배너 */}
           <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
